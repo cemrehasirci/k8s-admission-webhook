@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webhook-test
+  namespace: webhook-system
+  labels:
+    app: webhook-test
+spec:
+  containers:
+    - name: webhook-test
+      image: nginx
+      imagePullPolicy: Always
+      ports:
+        - containerPort: 80
