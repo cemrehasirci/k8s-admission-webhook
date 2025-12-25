@@ -10,6 +10,11 @@ data:
         static_configs:
           - targets: ['localhost:9090']
 
+      - job_name: 'kube-state-metrics'
+        static_configs:
+          - targets:
+            - kube-state-metrics.kube-system.svc.cluster.local:8080
+
       - job_name: 'x509-certificate-exporter'
         static_configs:
           - targets: ['172.23.55.56:9793']
