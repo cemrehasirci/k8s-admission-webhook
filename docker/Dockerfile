@@ -4,9 +4,11 @@ WORKDIR /app
 
 COPY src/app.py .
 
-RUN pip install fastapi uvicorn
+RUN pip install fastapi uvicorn prometheus_client
 
-# Webhook 8443 üzerinden çalışacak
+# Admission webhook
 EXPOSE 8443
+# Metrics
+EXPOSE 9091
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8443"]

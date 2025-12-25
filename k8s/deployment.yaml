@@ -15,17 +15,20 @@ spec:
     spec:
       containers:
       - name: webhook
-        image: cemo07/pod-security-webhook:v1
+        image: cemo07/pod-security-webhook:v1.1
         imagePullPolicy: Always
         ports:
         - containerPort: 8443
+          name: https
+        - containerPort: 9091
+          name: metrics
         volumeMounts:
         - name: tls-certs
           mountPath: /tls
           readOnly: true
         command: ["uvicorn"]
         args:
-          - "main:app"
+          - "app:app"
           - "--host"
           - "0.0.0.0"
           - "--port"
