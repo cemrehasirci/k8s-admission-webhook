@@ -1,27 +1,45 @@
 # Kubernetes Admission Webhook – v1
 
 ## Amaç
-Bu sürümün amacı, Kubernetes API Server ile TLS üzerinden haberleşebilen bir Admission Webhook altyapısı kurmak ve bu iletişimin başarıyla gerçekleştiğini doğrulamaktır.  
-Bu aşamada webhook herhangi bir güvenlik politikası uygulamaz ve tüm pod oluşturma isteklerine izin verir.
+Bu sürümün amacı, Kubernetes API Server ile **TLS üzerinden güvenli şekilde haberleşebilen** bir Admission Webhook altyapısı kurmak ve bu altyapının **çalıştığını ve izlenebilir olduğunu** doğrulamaktır.
+
+Bu aşamada webhook, tüm pod oluşturma isteklerine izin vermektedir (`allowed: true`).  
+Herhangi bir reddetme (deny) politikası uygulanmamaktadır.
+
 
 ## Yapılan Çalışmalar
-Bu sürüm kapsamında aşağıdaki çalışmalar gerçekleştirilmiştir:
 
-- Python (FastAPI) kullanılarak temel bir Validating Admission Webhook geliştirildi.
-- Webhook, Kubernetes API Server’dan gelen AdmissionReview isteklerini alacak şekilde yapılandırıldı.
+### v1.0 – Admission Webhook Altyapısı
+- Python (FastAPI) kullanılarak temel bir **Validating Admission Webhook** geliştirildi.
+- Webhook, Kubernetes API Server’dan gelen `AdmissionReview` isteklerini alacak şekilde yapılandırıldı.
 - HTTPS zorunluluğu için TLS sertifikaları oluşturuldu ve Kubernetes Secret olarak tanımlandı.
-- Webhook uygulaması Kubernetes üzerinde Deployment ve Service olarak çalıştırıldı.
-- ValidatingWebhookConfiguration tanımı ile pod oluşturma istekleri webhook servisine yönlendirildi.
+- Webhook uygulaması Kubernetes üzerinde **Deployment** ve **Service** olarak çalıştırıldı.
+- `ValidatingWebhookConfiguration` ile pod oluşturma istekleri webhook servisine yönlendirildi.
+- Test pod’ları ile webhook entegrasyonu başarıyla doğrulandı.
 
-## Test ve Doğrulama
-Webhook’un doğru çalıştığını doğrulamak amacıyla aşağıdaki testler yapılmıştır:
 
-- Test amacıyla kullanılan `webhook-test` pod manifesti ile yeni bir pod oluşturma isteği gönderildi.
-- Kubernetes API Server’ın bu isteği webhook servisine ilettiği gözlemlendi.
-- Webhook loglarında gelen AdmissionReview nesnesi başarıyla görüntülendi.
-- Webhook tarafından `allowed: true` yanıtı dönüldüğü ve pod’un oluşturulduğu doğrulandı.
+
+### v1.1 – Metrics ve Gözlemlenebilirlik
+- Webhook uygulamasına **Prometheus metrics** entegrasyonu eklendi.
+- Admission request sayısı ve gecikme süresi metrikleri tanımlandı.
+- Metrics endpoint’i ayrı bir port (9091) üzerinden expose edildi.
+- Metrics için ayrı Kubernetes **Service** oluşturuldu.
+- Prometheus yapılandırması güncellenerek webhook metrikleri scrape edildi.
+- Grafana üzerinde:
+  - Admission request sayısı,
+  - Request rate,
+  - Ortalama webhook gecikmesi,
+  - Pod durumları (Running / Pending / Failed)
+  panelleri oluşturuldu.
+- Kubernetes seviyesinde pod sağlık durumu izlenebilir hale getirildi.
+
 
 
 ## Sonuç
-Bu sürümde, Admission Webhook’un Kubernetes API Server ile doğru ve güvenli bir şekilde entegre olduğu kanıtlanmıştır.  
-Elde edilen bu altyapı, sonraki sürümlerde uygulanacak güvenlik politikaları için sağlam bir temel oluşturmaktadır.
+v1 (v1.0 + v1.1) ile birlikte Admission Webhook altyapısı:
+
+- Kubernetes ile güvenli şekilde entegre edilmiş,
+- Çalıştığı testlerle doğrulanmış,
+- İzlenebilir ve ölçülebilir hale getirilmiştir.
+
+
