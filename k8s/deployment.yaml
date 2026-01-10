@@ -13,20 +13,21 @@ spec:
       labels:
         app: pod-security-webhook
     spec:
+      serviceAccountName: pod-security-webhook
       containers:
-      - name: webhook
-        image: cemo07/pod-security-webhook:v2.0
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 8443
-          name: https
-        - containerPort: 9091
-          name: metrics
-        volumeMounts:
-        - name: tls-certs
-          mountPath: /tls
-          readOnly: true
+        - name: webhook
+          image: cemo07/pod-security-webhook:v3.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8443
+              name: https
+            - containerPort: 9091
+              name: metrics
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /tls
+              readOnly: true
       volumes:
-      - name: tls-certs
-        secret:
-          secretName: pod-security-webhook-tls
+        - name: tls-certs
+          secret:
+            secretName: pod-security-webhook-tls
