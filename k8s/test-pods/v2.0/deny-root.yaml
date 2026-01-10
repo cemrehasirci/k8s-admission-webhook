@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: deny-root-pod
+  namespace: webhook-system
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    securityContext:
+      runAsUser: 0
