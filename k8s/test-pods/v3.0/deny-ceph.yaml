@@ -1,0 +1,38 @@
+# webhook pvc'yi izlemiyor, pvc oluşacak
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-ceph-block
+  namespace: webhook-system
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: ceph-block
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-ceph-block-deny
+  namespace: webhook-system
+  labels:
+    webhook: enabled
+spec:
+  containers:
+  - name: app
+    image: busybox
+    command: ["sh", "-c", "sleep 3600"]
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+    volumeMounts:
+    - name: data
+      mountPath: /data
+  volumes:
+  - name: data
+    persistentVolumeClaim:
+      claimName: pvc-ceph-block

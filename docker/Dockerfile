@@ -4,7 +4,11 @@ WORKDIR /app
 
 COPY src/app.py .
 
-RUN pip install fastapi uvicorn prometheus_client
+RUN pip install --no-cache-dir \
+    fastapi \
+    uvicorn \
+    prometheus_client \
+    kubernetes==29.0.0
 
 # Admission webhook (HTTPS)
 EXPOSE 8443

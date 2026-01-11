@@ -19,6 +19,14 @@ webhooks:
     apiVersions: ["v1"]
     operations: ["CREATE"]
     resources: ["pods"]
+
   namespaceSelector:
     matchLabels:
       webhook: enabled
+
+  objectSelector:
+    matchExpressions:
+    - key: app
+      operator: NotIn
+      values:
+      - pod-security-webhook
