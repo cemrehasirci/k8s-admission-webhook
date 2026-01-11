@@ -1,92 +1,93 @@
-# Kubernetes Admission Webhook – v2.0
+# Kubernetes Admission Webhook – v3.0
 
 ## Amaç
-v2.0 sürümünün amacı, Kubernetes Admission Webhook altyapısını **aktif güvenlik politikaları** ile genişletmek ve pod’ların cluster’a alınmadan önce **policy bazlı olarak denetlenmesini ve engellenmesini** sağlamaktır.
+v3.0 sürümünün amacı, Kubernetes Admission Webhook altyapısını **storage-aware güvenlik politikaları** ile genişleterek,
+pod’ların cluster’a alınmadan önce **kullandıkları storage tipine göre** denetlenmesini ve standart dışı kullanımın
+engellenmesini sağlamaktır.
 
-Bu sürümde webhook yalnızca gözlem yapan bir bileşen olmaktan çıkarılmış, **güvenlik enforcement** (zorlayıcı denetim) mekanizması haline getirilmiştir.
+Bu sürüm ile birlikte webhook yalnızca container-level güvenlik politikalarını değil,
+aynı zamanda **kalıcı veri (storage) kullanımını** da kontrol eden merkezi bir policy enforcement bileşeni haline getirilmiştir.
 
-Ayrıca, uygulanan politikaların etkisi **Prometheus ve Grafana metrikleri** üzerinden ölçülerek doğrulanmıştır.
-
-
-
-## v2.0 – Güvenlik Politikaları ve Enforcement
-
-### Uygulanan Admission Politikaları
-Webhook, pod oluşturma isteklerini aşağıdaki kurallara göre değerlendirmektedir:
-
-- **Root kullanıcı ile çalışan pod’lar engellenir**
-  - `runAsUser: 0`
-- **Privileged container içeren pod’lar engellenir**
-  - `securityContext.privileged: true`
-- **Non-root çalışmayı garanti etmeyen pod’lar engellenir**
-  - `runAsNonRoot: true` eksikliği
-- **Privilege Escalation’a izin veren pod’lar engellenir**
-  - `allowPrivilegeEscalation: true`
-
-Bu koşullardan herhangi birini sağlayan pod’lar **Admission aşamasında reddedilir** ve Kubernetes cluster’a alınmaz.
+Ayrıca, uygulanan storage politikalarının etkisi Prometheus metrikleri ve Grafana dashboard’ları üzerinden ölçülerek
+gözlemlenebilirlik sağlanmıştır.
 
 
 
-## v2.0 – Metrics ve Gözlemlenebilirlik (Genişletilmiş)
+## v3.0 – Storage Policy Enforcement
+
+### Uygulanan Storage Politikaları
+Webhook, pod oluşturma isteklerini aşağıdaki storage kurallarına göre değerlendirmektedir:
+
+- **hostPath volume kullanan pod’lar engellenir**
+  - `volumes[].hostPath` tanımı bulunan pod’lar Admission aşamasında reddedilir
+- **Sadece Longhorn tabanlı PVC’lere izin verilir**
+  - `storageClassName: longhorn`
+- Longhorn dışındaki tüm storageClass’lar (Ceph, MinIO vb.) reddedilir
+
+Bu sayede:
+- Node filesystem erişimi engellenmiş,
+- Stateful workload’lar için **tek tip ve yönetilebilir storage standardı** sağlanmıştır.
+
+
+## Namespace ve Self-Protection Mekanizması
+
+Admission Webhook’un kendi kendini kilitlemesini önlemek amacıyla:
+
+- Webhook pod’u `objectSelector` mekanizması ile doğrulama kapsamı dışında bırakılmıştır
+- Aynı namespace içerisinde çalışan test pod’ları policy denetimine **devam etmektedir**
+
+Bu yaklaşım, namespace bazlı tamamen devre dışı bırakma yerine **nesne bazlı (object-level) izolasyon** sağlayarak
+daha kontrollü ve güvenli bir yapı sunmaktadır.
+
+
+## v3.0 – Metrics ve Gözlemlenebilirlik
 
 ### Yeni Eklenen Prometheus Metrikleri
-v2.0 ile birlikte politika bazlı metrikler eklenmiştir:
+v3.0 ile birlikte aşağıdaki storage odaklı metrikler eklenmiştir:
 
+- hostPath nedeniyle reddedilen pod sayısı
+- Longhorn dışı PVC kullandığı için reddedilen pod sayısı
 - Toplam admission request sayısı
 - İzin verilen (allowed) pod sayısı
 - Reddedilen (denied) pod sayısı
-- **Policy bazlı deny sayaçları:**
-  - Root user ihlalleri
-  - Privileged container ihlalleri
-  - Non-root policy ihlalleri
-  - Privilege escalation ihlalleri
 - Admission webhook gecikme süresi (latency)
 
-Tüm metrikler `Counter` ve `Histogram` tiplerinde tanımlanmıştır.
-
+Tüm metrikler Prometheus Counter ve Histogram tiplerinde tanımlanmıştır.
 
 
 ## Grafana Dashboard’ları
+
 Grafana üzerinde aşağıdaki paneller oluşturulmuştur:
 
-- Admission Requests (Toplam / Rate)
-- Allowed vs Denied Requests
-- Ortalama Webhook Latency
-- **Denied Pods – Root User**
-- **Denied Pods – Privileged**
-- **Denied Pods – NonRoot Violation**
-- **Denied Pods – Privilege Escalation**
-- Webhook Availability (UP / DOWN)
+- Denied Pods – hostPath
+- Denied Pods – Non-Longhorn PVC
+- Allowed vs Denied Admission Requests (Rate)
+- Admission Webhook Latency (p95)
+- Admission Request Volume (Rate)
 
-Bu paneller sayesinde:
-- Hangi güvenlik kuralının ne sıklıkla tetiklendiği,
-- Admission Webhook’un aktif olarak policy enforcement yaptığı
-görsel olarak doğrulanabilmektedir.
+Grafana panellerinde **raw counter değerleri yerine `increase` ve `rate` fonksiyonları kullanılarak**,
+pod restart ve rollout işlemlerinden bağımsız, zaman penceresi bazlı analiz sağlanmıştır.
 
 
 
 ## Test Senaryoları
-Her güvenlik politikası için ayrı test pod’ları oluşturulmuştur:
 
-- Root kullanıcıyla çalışan pod → **DENY**
-- Privileged container → **DENY**
-- Non-root garantisi olmayan pod → **DENY**
-- Privilege escalation açık pod → **DENY**
-- Non-root, escalation kapalı ve privileged olmayan pod → **ALLOW**
+v3.0 kapsamında aşağıdaki test senaryoları uygulanmıştır:
 
-Test sonuçları:
-- `kubectl` hata çıktıları
-- Webhook logları
-- Grafana metrikleri
-üzerinden doğrulanmıştır.
+- hostPath volume kullanan pod → **DENY**
+- Ceph storageClass kullanan PVC + pod → **DENY**
+- MinIO storageClass kullanan PVC + pod → **DENY**
+- Longhorn PVC kullanan pod → **ALLOW**
 
 
 ## Sonuç
-v2.0 sürümü ile birlikte Admission Webhook altyapısı:
 
-- Pasif gözlem yapan bir bileşenden çıkarılmış,
-- **Aktif güvenlik denetimi uygulayan bir kontrol noktası** haline getirilmiş,
-- Pod’ların daha cluster’a alınmadan önce güvenlik açısından filtrelenmesini sağlamış,
-- Tüm kararları metrikler ve dashboard’lar üzerinden ölçülebilir ve doğrulanabilir kılmıştır.
+v3.0 sürümü ile birlikte Admission Webhook altyapısı:
 
-Bu yapı, Kubernetes ortamlarında **policy-driven security enforcement** yaklaşımının uygulanabilirliğini göstermektedir.
+- Container-level güvenlik kontrollerinin ötesine geçerek storage-aware hale getirilmiş,
+- Node filesystem erişimini ve standart dışı storage kullanımını engellemiş,
+- Stateful workload’lar için Longhorn tabanlı merkezi bir storage standardı oluşturmuş,
+- Tüm kararları metrikler ve dashboard’lar üzerinden ölçülebilir hale getirmiştir.
+
+Bu yapı, Kubernetes ortamlarında **policy-driven ve standardize edilmiş storage güvenliği** yaklaşımının
+uygulanabilirliğini göstermektedir.
