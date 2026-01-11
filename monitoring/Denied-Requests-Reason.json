@@ -29,6 +29,8 @@
       "description": "Root kullanıcı (runAsUser=0) ile çalışmaya çalışan pod sayısını gösterir.",
       "fieldConfig": {
         "defaults": {
+          "decimals": 0,
+          "displayName": "Root Denied Pod",
           "mappings": [],
           "max": 10,
           "min": 0,
@@ -74,7 +76,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "admission_deny_root_user_total",
+          "expr": "increase(admission_deny_root_user_total[6h])",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -91,6 +93,8 @@
       "description": "privileged: true tanımıyla gelen pod sayısını.",
       "fieldConfig": {
         "defaults": {
+          "decimals": 0,
+          "displayName": "Privileged Denied Pod",
           "mappings": [],
           "max": 10,
           "min": 0,
@@ -130,13 +134,14 @@
         },
         "showThresholdLabels": false,
         "showThresholdMarkers": false,
-        "sizing": "auto"
+        "sizing": "auto",
+        "text": {}
       },
       "pluginVersion": "12.2.0",
       "targets": [
         {
           "editorMode": "code",
-          "expr": "admission_deny_privileged_total",
+          "expr": "increase(admission_deny_privileged_total[6h])",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -153,6 +158,8 @@
       "description": "runAsNonRoot: true zorunluluğunu ihlal eden pod sayısını.",
       "fieldConfig": {
         "defaults": {
+          "decimals": 0,
+          "displayName": "Non Root Denied Pod",
           "mappings": [],
           "max": 10,
           "min": 0,
@@ -198,7 +205,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "admission_deny_non_root_total",
+          "expr": "increase(admission_deny_non_root_total[1h])",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -215,6 +222,8 @@
       "description": "allowPrivilegeEscalation: true ile gelen pod sayısını.",
       "fieldConfig": {
         "defaults": {
+          "decimals": 0,
+          "displayName": "Root Privilege Denied Pod",
           "mappings": [],
           "max": 10,
           "min": 0,
@@ -260,13 +269,145 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "admission_deny_privilege_escalation_total",
+          "expr": "increase(admission_deny_privilege_escalation_total[6h])",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "Denied Pods – Privilege Escalation",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cf73o1omm1og0d"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "displayName": "Hostpath Denied Pod",
+          "mappings": [],
+          "max": 10,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "light-red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 7,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "increase(admission_deny_hostpath_total[6h])",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Denied Pods – Hostpath",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cf73o1omm1og0d"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "displayName": "Non Longhorn Denied Pod",
+          "mappings": [],
+          "max": 10,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "light-red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 8,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "increase(admission_deny_non_longhorn_pvc_total\r\n[6h])",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Denied Pods – Non Longhorn ",
       "type": "gauge"
     }
   ],
@@ -284,5 +425,5 @@
   "timezone": "browser",
   "title": "Denied Request Reason",
   "uid": "adsjgbt",
-  "version": 23
+  "version": 41
 }
