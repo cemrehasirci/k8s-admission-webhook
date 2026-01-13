@@ -2,77 +2,48 @@ from fastapi import FastAPI, Request
 import time
 import os
 import uvicorn
-import ssl
+import logging
 
 from prometheus_client import Counter, Histogram, start_http_server
 
-# ✅ Kubernetes API Client
+# Kubernetes API Client
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
 
 # =====================================================
-# METRICS SERVER (Prometheus scrape)
+# LOGGING SETUP
+# =====================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s"
+)
+logger = logging.getLogger("admission-webhook")
+
+# =====================================================
+# METRICS SERVER
 # =====================================================
 start_http_server(9091)
 
 # =====================================================
 # PROMETHEUS METRICS
 # =====================================================
-ADMISSION_REQUESTS = Counter(
-    "admission_requests_total",
-    "Total number of admission review requests"
-)
+ADMISSION_REQUESTS = Counter("admission_requests_total", "Total admission requests")
+ADMISSION_ALLOWED = Counter("admission_requests_allowed_total", "Allowed admission requests")
+ADMISSION_DENIED = Counter("admission_requests_denied_total", "Denied admission requests")
 
-ADMISSION_ALLOWED = Counter(
-    "admission_requests_allowed_total",
-    "Total number of allowed admission requests"
-)
+DENY_PRIVILEGED = Counter("admission_deny_privileged_total", "Denied privileged container")
+DENY_ROOT = Counter("admission_deny_root_user_total", "Denied runAsUser=0")
+DENY_ESCALATION = Counter("admission_deny_privilege_escalation_total", "Denied privilege escalation")
+DENY_NON_ROOT = Counter("admission_deny_non_root_total", "Denied runAsNonRoot violation")
 
-ADMISSION_DENIED = Counter(
-    "admission_requests_denied_total",
-    "Total number of denied admission requests"
-)
-
-DENY_PRIVILEGED = Counter(
-    "admission_deny_privileged_total",
-    "Denied due to privileged container"
-)
-
-DENY_ROOT = Counter(
-    "admission_deny_root_user_total",
-    "Denied due to runAsUser=0"
-)
-
-DENY_ESCALATION = Counter(
-    "admission_deny_privilege_escalation_total",
-    "Denied due to allowPrivilegeEscalation"
-)
-
-DENY_NON_ROOT = Counter(
-    "admission_deny_non_root_total",
-    "Denied due to runAsNonRoot not true"
-)
-
-# ✅ v3 storage deny metrics
-DENY_HOSTPATH = Counter(
-    "admission_deny_hostpath_total",
-    "Denied due to hostPath volume"
-)
-
-DENY_NON_LONGHORN_PVC = Counter(
-    "admission_deny_non_longhorn_pvc_total",
-    "Denied due to PVC storageClass not longhorn"
-)
-
-DENY_PVC_LOOKUP_FAILED = Counter(
-    "admission_deny_pvc_lookup_failed_total",
-    "Denied because PVC could not be fetched from API"
-)
+DENY_HOSTPATH = Counter("admission_deny_hostpath_total", "Denied hostPath volume")
+DENY_NON_LONGHORN_PVC = Counter("admission_deny_non_longhorn_pvc_total", "Denied non-longhorn PVC")
+DENY_PVC_LOOKUP_FAILED = Counter("admission_deny_pvc_lookup_failed_total", "Denied PVC lookup failure")
 
 ADMISSION_LATENCY = Histogram(
     "admission_request_duration_seconds",
-    "Admission webhook request latency"
+    "Admission webhook latency"
 )
 
 # =====================================================
@@ -81,77 +52,56 @@ ADMISSION_LATENCY = Histogram(
 app = FastAPI()
 
 # =====================================================
-# K8S CLIENT INIT (in-cluster)
+# K8S CLIENT INIT
 # =====================================================
-# StorageClass name we enforce for v3:
 ENFORCED_STORAGE_CLASS = os.getenv("ENFORCED_STORAGE_CLASS", "longhorn")
 
 def init_k8s_client():
-    """
-    In-cluster config loads ServiceAccount token automatically.
-    If you test locally, you can set USE_KUBECONFIG=true and it loads kubeconfig.
-    """
-    use_kubeconfig = os.getenv("USE_KUBECONFIG", "false").lower() == "true"
-
-    if use_kubeconfig:
+    if os.getenv("USE_KUBECONFIG", "false").lower() == "true":
         k8s_config.load_kube_config()
     else:
         k8s_config.load_incluster_config()
-
     return k8s_client.CoreV1Api()
 
 core_v1 = init_k8s_client()
 
-
 # =====================================================
-# v3 – STORAGE POLICY
+# STORAGE POLICY
 # =====================================================
 def validate_storage(pod: dict) -> tuple[bool, str]:
     spec = pod.get("spec", {})
     volumes = spec.get("volumes", [])
-    namespace = pod.get("metadata", {}).get("namespace") or "default"
+    namespace = pod.get("metadata", {}).get("namespace", "default")
 
-    # 1) hostPath deny
     for v in volumes:
-        vname = v.get("name", "<noname>")
         if v.get("hostPath") is not None:
             DENY_HOSTPATH.inc()
-            return False, f"hostPath volume not allowed: {vname}"
+            return False, "hostPath volume not allowed"
 
-    # 2) PVC storageClass must be longhorn
-    # Pod volumes can reference PVCs by name
     for v in volumes:
         pvc_ref = v.get("persistentVolumeClaim")
         if not pvc_ref:
             continue
 
         claim_name = pvc_ref.get("claimName")
-        if not claim_name:
-            DENY_PVC_LOOKUP_FAILED.inc()
-            return False, "PVC reference missing claimName"
-
         try:
             pvc = core_v1.read_namespaced_persistent_volume_claim(
                 name=claim_name,
                 namespace=namespace
             )
         except ApiException as e:
-            # If we cannot fetch PVC, fail closed (failurePolicy=Fail already)
             DENY_PVC_LOOKUP_FAILED.inc()
-            return False, f"PVC lookup failed for '{claim_name}' in ns '{namespace}': {e.reason}"
+            return False, f"PVC lookup failed: {e.reason}"
 
-        scn = pvc.spec.storage_class_name  # may be None
+        scn = pvc.spec.storage_class_name
         if scn != ENFORCED_STORAGE_CLASS:
             DENY_NON_LONGHORN_PVC.inc()
-            return False, (
-                f"PVC '{claim_name}' storageClass must be '{ENFORCED_STORAGE_CLASS}', got '{scn}'"
-            )
+            return False, f"PVC storageClass '{scn}' not allowed"
 
     return True, "Storage policy passed"
 
-
 # =====================================================
-# v2 – SECURITY POLICY (existing)
+# SECURITY POLICY
 # =====================================================
 def validate_security(spec: dict) -> tuple[bool, str]:
     pod_sc = spec.get("securityContext", {})
@@ -161,30 +111,25 @@ def validate_security(spec: dict) -> tuple[bool, str]:
         name = c.get("name", "<noname>")
         sc = c.get("securityContext", {})
 
-        # 1) privileged
         if sc.get("privileged") is True:
             DENY_PRIVILEGED.inc()
-            return False, f"Privileged container not allowed: {name}"
+            return False, f"Privileged container: {name}"
 
-        # 2) privilege escalation
         if sc.get("allowPrivilegeEscalation") is True:
             DENY_ESCALATION.inc()
-            return False, f"Privilege escalation not allowed: {name}"
+            return False, f"Privilege escalation: {name}"
 
-        # 3) runAsUser == 0
         run_as_user = sc.get("runAsUser", pod_sc.get("runAsUser"))
         if run_as_user == 0:
             DENY_ROOT.inc()
-            return False, f"Running as root is not allowed: {name}"
+            return False, f"Running as root: {name}"
 
-        # 4) runAsNonRoot zorunlu
         run_as_non_root = sc.get("runAsNonRoot", pod_sc.get("runAsNonRoot"))
         if run_as_non_root is not True:
             DENY_NON_ROOT.inc()
-            return False, f"runAsNonRoot must be true: {name}"
+            return False, f"runAsNonRoot not true: {name}"
 
     return True, "Security policy passed"
-
 
 # =====================================================
 # WEBHOOK ENDPOINT
@@ -198,39 +143,45 @@ async def validate(request: Request):
     req = body.get("request", {})
     uid = req.get("uid")
 
-    # Pod değilse dokunma
     if req.get("kind", {}).get("kind") != "Pod":
         ADMISSION_ALLOWED.inc()
-        ADMISSION_LATENCY.observe(time.time() - start_time)
+        logger.info("DECISION=ALLOW POLICY=non-pod RESOURCE=non-pod")
         return admission_response(uid, True, "Non-Pod resource allowed")
 
     pod = req.get("object", {})
     spec = pod.get("spec", {})
+    meta = pod.get("metadata", {})
+    pod_name = meta.get("name", "unknown")
+    namespace = meta.get("namespace", "default")
 
-    # =============================
-    # v3 – STORAGE POLICY
-    # =============================
     ok, msg = validate_storage(pod)
     if not ok:
         ADMISSION_DENIED.inc()
+        logger.warning(
+            f"DECISION=DENY POLICY=storage REASON='{msg}' POD={pod_name} NAMESPACE={namespace}"
+        )
         ADMISSION_LATENCY.observe(time.time() - start_time)
         return admission_response(uid, False, msg)
 
-    # =============================
-    # v2 – SECURITY POLICY
-    # =============================
     ok, msg = validate_security(spec)
     if not ok:
         ADMISSION_DENIED.inc()
+        logger.warning(
+            f"DECISION=DENY POLICY=security REASON='{msg}' POD={pod_name} NAMESPACE={namespace}"
+        )
         ADMISSION_LATENCY.observe(time.time() - start_time)
         return admission_response(uid, False, msg)
 
-    # Allow
     ADMISSION_ALLOWED.inc()
+    logger.info(
+        f"DECISION=ALLOW POD={pod_name} NAMESPACE={namespace}"
+    )
     ADMISSION_LATENCY.observe(time.time() - start_time)
     return admission_response(uid, True, "Allowed")
 
-
+# =====================================================
+# ADMISSION RESPONSE
+# =====================================================
 def admission_response(uid, allowed, message):
     return {
         "apiVersion": "admission.k8s.io/v1",
@@ -243,7 +194,6 @@ def admission_response(uid, allowed, message):
             }
         }
     }
-
 
 if __name__ == "__main__":
     uvicorn.run(
