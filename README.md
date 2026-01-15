@@ -1,93 +1,49 @@
-# Kubernetes Admission Webhook – v3.0
+# Kubernetes Admission Webhook
 
-## Amaç
-v3.0 sürümünün amacı, Kubernetes Admission Webhook altyapısını **storage-aware güvenlik politikaları** ile genişleterek,
-pod’ların cluster’a alınmadan önce **kullandıkları storage tipine göre** denetlenmesini ve standart dışı kullanımın
-engellenmesini sağlamaktır.
+Kubernetes **Validating Admission Webhook** projesidir. Amaç; Pod’lar cluster’a alınmadan önce belirlenen kurallara göre
+**ALLOW / DENY** kararı vererek standart dışı ve riskli kullanımın önüne geçmektir.
 
-Bu sürüm ile birlikte webhook yalnızca container-level güvenlik politikalarını değil,
-aynı zamanda **kalıcı veri (storage) kullanımını** da kontrol eden merkezi bir policy enforcement bileşeni haline getirilmiştir.
+Webhook kararları **Prometheus metrikleri** ile ölçülür, **Grafana dashboard**’ları ile izlenir.
 
-Ayrıca, uygulanan storage politikalarının etkisi Prometheus metrikleri ve Grafana dashboard’ları üzerinden ölçülerek
-gözlemlenebilirlik sağlanmıştır.
+---
 
+## Projenin Kapsadığı Politikalar
 
+### 1) Security Policies (v2 ile olgunlaştı)
+Pod içindeki `containers` ve `initContainers` için temel güvenlik kontrolleri uygulanır:
+- **privileged** container → DENY
+- **allowPrivilegeEscalation=true** → DENY
+- **runAsUser=0 (root)** → DENY
+- **runAsNonRoot=true zorunlu** (değilse) → DENY
 
-## v3.0 – Storage Policy Enforcement
+### 2) Storage Policies (v3.0)
+Storage standardı ve node güvenliği için:
+- **hostPath volume** → DENY
+- **Sadece belirlenen storageClass (default: longhorn) PVC** → ALLOW
+- Longhorn dışı storageClass → DENY
+- PVC lookup hatası (RBAC/NotFound vb.) → DENY
 
-### Uygulanan Storage Politikaları
-Webhook, pod oluşturma isteklerini aşağıdaki storage kurallarına göre değerlendirmektedir:
+### 3) Resource Policies (v4.0)
+Kaynak disiplini için her container/initContainer’da zorunlu:
+- `resources.requests.cpu` ve `resources.requests.memory`
+- `resources.limits.cpu` ve `resources.limits.memory`
+Eksik olan her durumda → **DENY** (ayrı deny reason + metric)
 
-- **hostPath volume kullanan pod’lar engellenir**
-  - `volumes[].hostPath` tanımı bulunan pod’lar Admission aşamasında reddedilir
-- **Sadece Longhorn tabanlı PVC’lere izin verilir**
-  - `storageClassName: longhorn`
-- Longhorn dışındaki tüm storageClass’lar (Ceph, MinIO vb.) reddedilir
+---
 
-Bu sayede:
-- Node filesystem erişimi engellenmiş,
-- Stateful workload’lar için **tek tip ve yönetilebilir storage standardı** sağlanmıştır.
-
-
-## Namespace ve Self-Protection Mekanizması
-
-Admission Webhook’un kendi kendini kilitlemesini önlemek amacıyla:
-
-- Webhook pod’u `objectSelector` mekanizması ile doğrulama kapsamı dışında bırakılmıştır
-- Aynı namespace içerisinde çalışan test pod’ları policy denetimine **devam etmektedir**
-
-Bu yaklaşım, namespace bazlı tamamen devre dışı bırakma yerine **nesne bazlı (object-level) izolasyon** sağlayarak
-daha kontrollü ve güvenli bir yapı sunmaktadır.
-
-
-## v3.0 – Metrics ve Gözlemlenebilirlik
-
-### Yeni Eklenen Prometheus Metrikleri
-v3.0 ile birlikte aşağıdaki storage odaklı metrikler eklenmiştir:
-
-- hostPath nedeniyle reddedilen pod sayısı
-- Longhorn dışı PVC kullandığı için reddedilen pod sayısı
+## Gözlemlenebilirlik (Prometheus + Grafana)
+Webhook şu metrikleri üretir:
 - Toplam admission request sayısı
-- İzin verilen (allowed) pod sayısı
-- Reddedilen (denied) pod sayısı
-- Admission webhook gecikme süresi (latency)
+- Allowed / Denied sayıları
+- Policy bazlı **deny reason** sayaçları (security/storage/resources)
+- Admission latency (Histogram)
 
-Tüm metrikler Prometheus Counter ve Histogram tiplerinde tanımlanmıştır.
+Grafana panellerinde `rate()` / `increase()` kullanılarak zaman penceresi bazlı analiz yapılır.
 
+---
 
-## Grafana Dashboard’ları
-
-Grafana üzerinde aşağıdaki paneller oluşturulmuştur:
-
-- Denied Pods – hostPath
-- Denied Pods – Non-Longhorn PVC
-- Allowed vs Denied Admission Requests (Rate)
-- Admission Webhook Latency (p95)
-- Admission Request Volume (Rate)
-
-Grafana panellerinde **raw counter değerleri yerine `increase` ve `rate` fonksiyonları kullanılarak**,
-pod restart ve rollout işlemlerinden bağımsız, zaman penceresi bazlı analiz sağlanmıştır.
-
-
-
-## Test Senaryoları
-
-v3.0 kapsamında aşağıdaki test senaryoları uygulanmıştır:
-
-- hostPath volume kullanan pod → **DENY**
-- Ceph storageClass kullanan PVC + pod → **DENY**
-- MinIO storageClass kullanan PVC + pod → **DENY**
-- Longhorn PVC kullanan pod → **ALLOW**
-
-
-## Sonuç
-
-v3.0 sürümü ile birlikte Admission Webhook altyapısı:
-
-- Container-level güvenlik kontrollerinin ötesine geçerek storage-aware hale getirilmiş,
-- Node filesystem erişimini ve standart dışı storage kullanımını engellemiş,
-- Stateful workload’lar için Longhorn tabanlı merkezi bir storage standardı oluşturmuş,
-- Tüm kararları metrikler ve dashboard’lar üzerinden ölçülebilir hale getirmiştir.
-
-Bu yapı, Kubernetes ortamlarında **policy-driven ve standardize edilmiş storage güvenliği** yaklaşımının
-uygulanabilirliğini göstermektedir.
+## Versiyon Özeti
+- **v1.x:** TLS ile çalışan admission webhook temel altyapısı
+- **v2.x:** Security policy enforcement + metrik/karar takibi genişletmeleri
+- **v3.0:** Storage policy enforcement (hostPath deny + Longhorn standardı) + dashboard’lar
+- **v4.0:** CPU/Memory requests+limits zorunluluğu (resource enforcement) + yeni deny metrics/dashboard’lar
