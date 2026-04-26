@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dev-root-warning
+  namespace: dev
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    securityContext:
+      runAsUser: 0
+      allowPrivilegeEscalation: false
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
