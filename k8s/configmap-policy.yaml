@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webhook-policy-config
+  namespace: webhook-system
+data:
+  dev.yaml: |
+    allowLatestTag: true
+    blockPrivileged: true
+    blockRootUser: false
+    warnRootUser: true
+    requireResources: true
+
+  test.yaml: |
+    allowLatestTag: false
+    blockPrivileged: true
+    blockRootUser: true
+    warnRootUser: false
+    requireResources: true

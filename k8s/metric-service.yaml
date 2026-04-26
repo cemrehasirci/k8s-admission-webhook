@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: pod-security-webhook-metrics
   namespace: webhook-system
+  labels:
+    app: pod-security-webhook
 spec:
   selector:
     app: pod-security-webhook
