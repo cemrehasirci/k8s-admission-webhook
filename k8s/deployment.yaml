@@ -16,7 +16,7 @@ spec:
       serviceAccountName: pod-security-webhook
       containers:
         - name: webhook
-          image: cemo07/pod-security-webhook:v4.0
+          image: cemo07/pod-security-webhook:v5.1
           imagePullPolicy: Always
           ports:
             - containerPort: 8443
