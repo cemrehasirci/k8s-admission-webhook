@@ -7,6 +7,8 @@ import uvicorn
 
 from prometheus_client import Counter, Histogram, start_http_server
 
+from audit_logger import save_audit_log
+
 from policies import (
     init_k8s_client,
     get_namespace_environment,
@@ -180,6 +182,11 @@ async def validate(request: Request):
     meta = pod.get("metadata", {}) or {}
     pod_name = meta.get("name", "unknown")
 
+    # Extract container images
+    containers = spec.get("containers", [])
+    images = [container.get("image", "unknown") for container in containers]
+    image_text = ",".join(images)
+
     # Namespace can come from AdmissionReview request.
     # If not available there, fallback to pod metadata.
     namespace = req.get("namespace") or meta.get("namespace", "default")
@@ -216,6 +223,16 @@ async def validate(request: Request):
             start_time=start_time
         )
 
+        save_audit_log(
+            namespace=namespace,
+            pod_name=pod_name,
+            image=image_text,
+            decision="deny",
+            policy="storage",
+            reason=msg,
+            environment=environment
+        )
+
         return admission_response(uid, False, msg)
 
     # 2) Image policy
@@ -236,6 +253,16 @@ async def validate(request: Request):
             pod_name=pod_name,
             reason=msg,
             start_time=start_time
+        )
+
+        save_audit_log(
+            namespace=namespace,
+            pod_name=pod_name,
+            image=image_text,
+            decision="deny",
+            policy="image",
+            reason=msg,
+            environment=environment
         )
 
         return admission_response(uid, False, msg)
@@ -260,6 +287,16 @@ async def validate(request: Request):
             start_time=start_time
         )
 
+        save_audit_log(
+            namespace=namespace,
+            pod_name=pod_name,
+            image=image_text,
+            decision="deny",
+            policy="security",
+            reason=msg,
+            environment=environment
+        )
+
         return admission_response(uid, False, msg)
 
     # 4) Resource policy
@@ -282,6 +319,16 @@ async def validate(request: Request):
                 start_time=start_time
             )
 
+            save_audit_log(
+                namespace=namespace,
+                pod_name=pod_name,
+                image=image_text,
+                decision="deny",
+                policy="resources",
+                reason=msg,
+                environment=environment
+            )
+
             return admission_response(uid, False, msg)
 
     # Allow
@@ -302,6 +349,16 @@ async def validate(request: Request):
             warnings=warnings
         )
 
+        save_audit_log(
+            namespace=namespace,
+            pod_name=pod_name,
+            image=image_text,
+            decision="allow_with_warning",
+            policy="security",
+            reason="Allowed with warnings",
+            environment=environment
+        )
+
         return admission_response(uid, True, "Allowed with warnings", warnings)
 
     log_decision(
@@ -314,6 +371,16 @@ async def validate(request: Request):
         pod_name=pod_name,
         reason="Allowed",
         start_time=start_time
+    )
+
+    save_audit_log(
+        namespace=namespace,
+        pod_name=pod_name,
+        image=image_text,
+        decision="allow",
+        policy="all",
+        reason="Allowed",
+        environment=environment
     )
 
     return admission_response(uid, True, "Allowed")
