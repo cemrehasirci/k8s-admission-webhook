@@ -1,4 +1,14 @@
 {
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
   "annotations": {
     "list": [
       {
@@ -17,22 +27,20 @@
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
-  "id": 0,
+  "graphTooltip": 1,
+  "id": null,
   "links": [],
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "cf73o1omm1og0d"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Root kullanıcı (runAsUser=0) ile çalışmaya çalışan pod sayısını gösterir.",
+      "description": "Son 24 saatte root user nedeniyle reddedilen pod sayısı.",
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
-          "displayName": "Root Denied Pod",
-          "mappings": [],
-          "max": 10,
+          "displayName": "Root User",
           "min": 0,
           "thresholds": {
             "mode": "absolute",
@@ -42,34 +50,35 @@
                 "value": 0
               },
               {
-                "color": "light-red",
+                "color": "red",
                 "value": 1
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 6,
         "x": 0,
         "y": 0
       },
-      "id": 3,
+      "id": 1,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "last"
+            "lastNotNull"
           ],
           "fields": "",
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": false,
+        "showThresholdMarkers": true,
         "sizing": "auto"
       },
       "pluginVersion": "12.2.0",
@@ -82,21 +91,19 @@
           "refId": "A"
         }
       ],
-      "title": "Denied Pods – Root User",
+      "title": "Denied – Root User",
       "type": "gauge"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "cf73o1omm1og0d"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "privileged: true tanımıyla gelen pod sayısını.",
+      "description": "Son 24 saatte privileged container nedeniyle reddedilen pod sayısı.",
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
-          "displayName": "Privileged Denied Pod",
-          "mappings": [],
-          "max": 10,
+          "displayName": "Privileged",
           "min": 0,
           "thresholds": {
             "mode": "absolute",
@@ -106,36 +113,36 @@
                 "value": 0
               },
               {
-                "color": "light-red",
+                "color": "red",
                 "value": 1
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 6,
+        "x": 6,
         "y": 0
       },
-      "id": 4,
+      "id": 2,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "last"
+            "lastNotNull"
           ],
           "fields": "",
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": false,
-        "sizing": "auto",
-        "text": {}
+        "showThresholdMarkers": true,
+        "sizing": "auto"
       },
       "pluginVersion": "12.2.0",
       "targets": [
@@ -147,21 +154,19 @@
           "refId": "A"
         }
       ],
-      "title": "Denied Pods – Privileged",
+      "title": "Denied – Privileged",
       "type": "gauge"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "cf73o1omm1og0d"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "runAsNonRoot: true zorunluluğunu ihlal eden pod sayısını.",
+      "description": "Son 24 saatte NonRoot politikası ihlali nedeniyle reddedilen pod sayısı.",
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
-          "displayName": "Non Root Denied Pod",
-          "mappings": [],
-          "max": 10,
+          "displayName": "NonRoot Violation",
           "min": 0,
           "thresholds": {
             "mode": "absolute",
@@ -171,34 +176,35 @@
                 "value": 0
               },
               {
-                "color": "light-red",
+                "color": "red",
                 "value": 1
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
+        "w": 6,
+        "x": 12,
+        "y": 0
       },
-      "id": 6,
+      "id": 3,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "last"
+            "lastNotNull"
           ],
           "fields": "",
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": false,
+        "showThresholdMarkers": true,
         "sizing": "auto"
       },
       "pluginVersion": "12.2.0",
@@ -211,21 +217,19 @@
           "refId": "A"
         }
       ],
-      "title": "Denied Pods – NonRoot Violation",
+      "title": "Denied – NonRoot Violation",
       "type": "gauge"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "cf73o1omm1og0d"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "allowPrivilegeEscalation: true ile gelen pod sayısını.",
+      "description": "Son 24 saatte privilege escalation nedeniyle reddedilen pod sayısı.",
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
-          "displayName": "Root Privilege Denied Pod",
-          "mappings": [],
-          "max": 10,
+          "displayName": "Privilege Escalation",
           "min": 0,
           "thresholds": {
             "mode": "absolute",
@@ -235,34 +239,35 @@
                 "value": 0
               },
               {
-                "color": "light-red",
+                "color": "red",
                 "value": 1
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
+        "w": 6,
+        "x": 18,
+        "y": 0
       },
-      "id": 5,
+      "id": 4,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "last"
+            "lastNotNull"
           ],
           "fields": "",
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": false,
+        "showThresholdMarkers": true,
         "sizing": "auto"
       },
       "pluginVersion": "12.2.0",
@@ -275,25 +280,19 @@
           "refId": "A"
         }
       ],
-      "title": "Denied Pods – Privilege Escalation",
+      "title": "Denied – Privilege Escalation",
       "type": "gauge"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "cf73o1omm1og0d"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "",
+      "description": "Son 24 saatte hostPath kullanımı nedeniyle reddedilen pod sayısı.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "fixedColor": "red",
-            "mode": "thresholds"
-          },
           "decimals": 0,
-          "displayName": "Hostpath Denied Pod",
-          "mappings": [],
-          "max": 10,
+          "displayName": "HostPath",
           "min": 0,
           "thresholds": {
             "mode": "absolute",
@@ -303,34 +302,35 @@
                 "value": 0
               },
               {
-                "color": "light-red",
+                "color": "red",
                 "value": 1
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 6,
         "x": 0,
-        "y": 16
+        "y": 8
       },
-      "id": 7,
+      "id": 5,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "last"
+            "lastNotNull"
           ],
           "fields": "",
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": false,
+        "showThresholdMarkers": true,
         "sizing": "auto"
       },
       "pluginVersion": "12.2.0",
@@ -343,21 +343,19 @@
           "refId": "A"
         }
       ],
-      "title": "Denied Pods – Hostpath",
+      "title": "Denied – HostPath",
       "type": "gauge"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "cf73o1omm1og0d"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "",
+      "description": "Son 24 saatte non-Longhorn PVC nedeniyle reddedilen pod sayısı.",
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
-          "displayName": "Non Longhorn Denied Pod",
-          "mappings": [],
-          "max": 10,
+          "displayName": "Non-Longhorn PVC",
           "min": 0,
           "thresholds": {
             "mode": "absolute",
@@ -367,19 +365,146 @@
                 "value": 0
               },
               {
-                "color": "light-red",
+                "color": "red",
                 "value": 1
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 6,
+        "x": 6,
+        "y": 8
+      },
+      "id": 6,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "increase(admission_deny_non_longhorn_pvc_total[24h])",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Denied – Non-Longhorn PVC",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Son 24 saatte missing requests nedeniyle reddedilen toplam pod sayısı.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "displayName": "Missing Requests",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
         "x": 12,
-        "y": 16
+        "y": 8
+      },
+      "id": 7,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(increase(admission_deny_missing_requests_cpu_total[24h])) + sum(increase(admission_deny_missing_requests_memory_total[24h]))",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Denied – Missing Requests",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Son 24 saatte missing limits nedeniyle reddedilen toplam pod sayısı.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "displayName": "Missing Limits",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 8
       },
       "id": 8,
       "options": {
@@ -388,160 +513,38 @@
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "last"
+            "lastNotNull"
           ],
           "fields": "",
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": false,
+        "showThresholdMarkers": true,
         "sizing": "auto"
       },
       "pluginVersion": "12.2.0",
       "targets": [
         {
           "editorMode": "code",
-          "expr": "increase(admission_deny_non_longhorn_pvc_total\r\n[24h])",
+          "expr": "sum(increase(admission_deny_missing_limits_cpu_total[24h])) + sum(increase(admission_deny_missing_limits_memory_total[24h]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Denied Pods – Non Longhorn ",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "cf73o1omm1og0d"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0,
-          "displayName": "Missing Requests Denied Pod",
-          "mappings": [],
-          "max": 10,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "light-red",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 24
-      },
-      "id": 9,
-      "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "last"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": false,
-        "sizing": "auto"
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "sum(\r\n  increase(admission_deny_missing_requests_cpu_total[24h])\r\n) +\r\nsum(\r\n  increase(admission_deny_missing_requests_memory_total[24h])\r\n)",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Denied Pods – Missing Requests",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "cf73o1omm1og0d"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0,
-          "displayName": "Missing Limits Denied Pod",
-          "mappings": [],
-          "max": 10,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "light-red",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 24
-      },
-      "id": 10,
-      "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "last"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": false,
-        "sizing": "auto"
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "sum(increase(admission_deny_missing_limits_cpu_total[24h]))\r\n+\r\nsum(increase(admission_deny_missing_limits_memory_total[24h]))",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Denied Pods – Missing Limits",
+      "title": "Denied – Missing Limits",
       "type": "gauge"
     }
   ],
   "preload": false,
+  "refresh": "15s",
   "schemaVersion": 42,
-  "tags": [],
+  "tags": [
+    "webhook",
+    "security",
+    "denied",
+    "policy"
+  ],
   "templating": {
     "list": []
   },
@@ -551,7 +554,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Denied Request Reason",
-  "uid": "adsjgbt",
-  "version": 51
+  "title": "Denied Request Reasons",
+  "uid": "denied-request-reasons-v1",
+  "version": 1
 }

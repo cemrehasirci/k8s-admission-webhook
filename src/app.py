@@ -9,7 +9,10 @@ from prometheus_client import Counter, Histogram, start_http_server
 
 from policies import (
     init_k8s_client,
+    get_namespace_environment,
+    load_policy_for_environment,
     validate_storage,
+    validate_images,
     validate_security,
     validate_resources,
 )
@@ -51,16 +54,24 @@ app = FastAPI()
 # =====================================================
 ENFORCED_STORAGE_CLASS = os.getenv("ENFORCED_STORAGE_CLASS", "longhorn")
 
+POLICY_CONFIGMAP_NAME = os.getenv("POLICY_CONFIGMAP_NAME", "webhook-policy-config")
+POLICY_CONFIGMAP_NAMESPACE = os.getenv("POLICY_CONFIGMAP_NAMESPACE", "webhook-system")
+DEFAULT_ENVIRONMENT = os.getenv("DEFAULT_ENVIRONMENT", "dev")
+
 # =====================================================
-# K8S CLIENT (needed for PVC lookup in storage policy)
+# K8S CLIENT
 # =====================================================
+# Needed for:
+# - PVC lookup in storage policy
+# - Namespace label lookup for environment detection
+# - ConfigMap lookup for environment-based policies
 core_v1 = init_k8s_client()
 
 # =====================================================
 # ADMISSION RESPONSE
 # =====================================================
-def admission_response(uid: str, allowed: bool, message: str) -> dict:
-    return {
+def admission_response(uid: str, allowed: bool, message: str, warnings: list[str] | None = None) -> dict:
+    response = {
         "apiVersion": "admission.k8s.io/v1",
         "kind": "AdmissionReview",
         "response": {
@@ -71,6 +82,67 @@ def admission_response(uid: str, allowed: bool, message: str) -> dict:
             }
         }
     }
+
+    # Kubernetes AdmissionReview supports warning messages.
+    # In dev environment, root user usage can be allowed but returned as warning.
+    if warnings:
+        response["response"]["warnings"] = warnings
+
+    return response
+
+
+# =====================================================
+# STRUCTURED DECISION LOGGING
+# =====================================================
+def colorize_decision(decision: str) -> str:
+    """
+    Adds ANSI color codes to the DECISION value.
+    - ALLOW              -> green
+    - ALLOW_WITH_WARNING -> yellow
+    - DENY               -> red
+    """
+    if decision == "ALLOW":
+        return f"\033[92m{decision}\033[0m"
+    if decision == "ALLOW_WITH_WARNING":
+        return f"\033[93m{decision}\033[0m"
+    if decision == "DENY":
+        return f"\033[91m{decision}\033[0m"
+    return decision
+
+
+def log_decision(
+    level: str,
+    uid: str,
+    decision: str,
+    policy: str,
+    environment: str,
+    namespace: str,
+    pod_name: str,
+    reason: str,
+    start_time: float,
+    warnings: list[str] | None = None
+) -> None:
+    latency = time.time() - start_time
+    warning_text = ",".join(warnings) if warnings else "-"
+    colored_decision = colorize_decision(decision)
+
+    message = (
+        f"EVENT=admission_review "
+        f"DECISION={colored_decision} "
+        f"POLICY={policy} "
+        #f"ENV={environment} "
+        f"NAMESPACE={namespace} "
+        f"POD={pod_name} "
+        f"REASON=\"{reason}\" "
+        f"WARNINGS=\"{warning_text}\" "
+        #f"LATENCY={latency:.4f}s"
+    )
+
+    if level == "warning":
+        logger.warning(message)
+    else:
+        logger.info(message)
+
 
 # =====================================================
 # WEBHOOK ENDPOINT
@@ -87,50 +159,163 @@ async def validate(request: Request):
     # Only Pod objects
     if req.get("kind", {}).get("kind") != "Pod":
         ADMISSION_ALLOWED.inc()
-        logger.info("DECISION=ALLOW POLICY=non-pod RESOURCE=non-pod")
         ADMISSION_LATENCY.observe(time.time() - start_time)
+
+        log_decision(
+            level="info",
+            uid=uid,
+            decision="ALLOW",
+            policy="non-pod",
+            environment="-",
+            namespace=req.get("namespace", "-"),
+            pod_name="-",
+            reason="Non-Pod resource allowed",
+            start_time=start_time
+        )
+
         return admission_response(uid, True, "Non-Pod resource allowed")
 
     pod = req.get("object", {}) or {}
     spec = pod.get("spec", {}) or {}
     meta = pod.get("metadata", {}) or {}
     pod_name = meta.get("name", "unknown")
-    namespace = meta.get("namespace", "default")
+
+    # Namespace can come from AdmissionReview request.
+    # If not available there, fallback to pod metadata.
+    namespace = req.get("namespace") or meta.get("namespace", "default")
+
+    # 0) Environment-based policy loading
+    environment = get_namespace_environment(
+        core_v1=core_v1,
+        namespace=namespace,
+        default_environment=DEFAULT_ENVIRONMENT
+    )
+
+    policy = load_policy_for_environment(
+        core_v1=core_v1,
+        configmap_name=POLICY_CONFIGMAP_NAME,
+        configmap_namespace=POLICY_CONFIGMAP_NAMESPACE,
+        environment=environment
+    )
 
     # 1) Storage policy
     ok, msg = validate_storage(pod, core_v1, ENFORCED_STORAGE_CLASS)
     if not ok:
         ADMISSION_DENIED.inc()
-        logger.warning(
-            f"DECISION=DENY POLICY=storage REASON='{msg}' POD={pod_name} NAMESPACE={namespace}"
-        )
         ADMISSION_LATENCY.observe(time.time() - start_time)
+
+        log_decision(
+            level="warning",
+            uid=uid,
+            decision="DENY",
+            policy="storage",
+            environment=environment,
+            namespace=namespace,
+            pod_name=pod_name,
+            reason=msg,
+            start_time=start_time
+        )
+
         return admission_response(uid, False, msg)
 
-    # 2) Security policy
-    ok, msg = validate_security(spec)
+    # 2) Image policy
+    # dev  -> latest tag is allowed
+    # test -> latest or tagless images are denied
+    ok, msg = validate_images(spec, policy)
     if not ok:
         ADMISSION_DENIED.inc()
-        logger.warning(
-            f"DECISION=DENY POLICY=security REASON='{msg}' POD={pod_name} NAMESPACE={namespace}"
-        )
         ADMISSION_LATENCY.observe(time.time() - start_time)
+
+        log_decision(
+            level="warning",
+            uid=uid,
+            decision="DENY",
+            policy="image",
+            environment=environment,
+            namespace=namespace,
+            pod_name=pod_name,
+            reason=msg,
+            start_time=start_time
+        )
+
         return admission_response(uid, False, msg)
 
-    # 3) Resource policy (v4.0)
-    ok, msg = validate_resources(spec)
+    # 3) Security policy
+    # dev  -> root user returns warning but does not deny
+    # test -> root user is denied
+    ok, msg, warnings = validate_security(spec, policy)
     if not ok:
         ADMISSION_DENIED.inc()
-        logger.warning(
-            f"DECISION=DENY POLICY=resources REASON='{msg}' POD={pod_name} NAMESPACE={namespace}"
-        )
         ADMISSION_LATENCY.observe(time.time() - start_time)
+
+        log_decision(
+            level="warning",
+            uid=uid,
+            decision="DENY",
+            policy="security",
+            environment=environment,
+            namespace=namespace,
+            pod_name=pod_name,
+            reason=msg,
+            start_time=start_time
+        )
+
         return admission_response(uid, False, msg)
+
+    # 4) Resource policy
+    # Resource requests and limits are mandatory in both dev and test.
+    if policy.get("requireResources", True):
+        ok, msg = validate_resources(spec)
+        if not ok:
+            ADMISSION_DENIED.inc()
+            ADMISSION_LATENCY.observe(time.time() - start_time)
+
+            log_decision(
+                level="warning",
+                uid=uid,
+                decision="DENY",
+                policy="resources",
+                environment=environment,
+                namespace=namespace,
+                pod_name=pod_name,
+                reason=msg,
+                start_time=start_time
+            )
+
+            return admission_response(uid, False, msg)
 
     # Allow
     ADMISSION_ALLOWED.inc()
-    logger.info(f"DECISION=ALLOW POD={pod_name} NAMESPACE={namespace}")
     ADMISSION_LATENCY.observe(time.time() - start_time)
+
+    if warnings:
+        log_decision(
+            level="info",
+            uid=uid,
+            decision="ALLOW_WITH_WARNING",
+            policy="security",
+            environment=environment,
+            namespace=namespace,
+            pod_name=pod_name,
+            reason="Allowed with warnings",
+            start_time=start_time,
+            warnings=warnings
+        )
+
+        return admission_response(uid, True, "Allowed with warnings", warnings)
+
+    log_decision(
+        level="info",
+        uid=uid,
+        decision="ALLOW",
+        policy="all",
+        environment=environment,
+        namespace=namespace,
+        pod_name=pod_name,
+        reason="Allowed",
+        start_time=start_time
+    )
+
     return admission_response(uid, True, "Allowed")
 
 
@@ -140,5 +325,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8443,
         ssl_keyfile="/tls/tls.key",
-        ssl_certfile="/tls/tls.crt"
+        ssl_certfile="/tls/tls.crt",
+        access_log=False
     )

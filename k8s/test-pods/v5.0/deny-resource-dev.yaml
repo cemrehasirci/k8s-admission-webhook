@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dev-resource-deny
+  namespace: dev
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+  - name: nginx
+    image: nginx:latest
+    securityContext:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
