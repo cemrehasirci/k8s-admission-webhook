@@ -4,17 +4,17 @@ Kubernetes üzerinde çalışan Pod’ların güvenlik ve kaynak politikalarına
 
 Webhook, Pod oluşturma isteklerini değerlendirerek belirlenen kurallara göre **ALLOW / DENY** kararı verir.
 
-Admission kararları:
+Admission kararları aşağıdaki yapılar ile gözlemlenebilir hale getirilmiştir:
+
 - Prometheus metrikleri
 - Grafana dashboard’ları
 - Structured logging
-- PostgreSQL tabanlı stateful audit logging
-
-ile gözlemlenebilir hale getirilmiştir.
+- PostgreSQL tabanlı audit logging
+- Swagger/OpenAPI dokümantasyonu
 
 ---
 
-# Özellikler
+# Features
 
 ## Security Policies
 - `privileged=true` → DENY
@@ -24,61 +24,56 @@ ile gözlemlenebilir hale getirilmiştir.
 
 ## Storage Policies
 - `hostPath` volume → DENY
-- Sadece belirlenen storageClass kullanımı → ALLOW
-- Farklı storageClass → DENY
+- Sadece izin verilen `storageClass` kullanımı → ALLOW
 
 ## Resource Policies
-Her container için zorunlu:
-- `resources.requests.cpu`
-- `resources.requests.memory`
-- `resources.limits.cpu`
-- `resources.limits.memory`
+Her container için aşağıdaki resource alanları zorunludur:
+
+- CPU requests/limits
+- Memory requests/limits
 
 Eksik olması durumunda → DENY
 
 ---
 
-# Environment-Based Policies
+## Environment-Based Policies
 
-Webhook namespace label’larına göre farklı policy davranışları uygular.
+Webhook, namespace label’larına göre farklı policy davranışları uygular.
 
-## Dev Environment
-| Policy | Davranış |
-|---|---|
-| latest image | ALLOW |
-| root user | WARNING |
-| privileged | DENY |
-| resource limits | REQUIRED |
 
-## Test Environment
-| Policy | Davranış |
-|---|---|
-| latest image | DENY |
-| root user | DENY |
-| privileged | DENY |
-| resource limits | REQUIRED |
+| Policy | Dev Environment | Test Environment |
+|---|---|---|
+| latest image | ALLOW | DENY |
+| root user | WARNING | DENY |
+| privileged | DENY | DENY |
+| resource limits | REQUIRED | REQUIRED |
 
 ---
 
 # Observability
 
+Webhook aşağıdaki gözlemlenebilirlik özelliklerini sağlar:
+
 - Prometheus metrics
 - Grafana dashboards
 - Structured decision logging
 - Admission latency tracking
+- PostgreSQL audit analytics
+- Health check endpointleri
+- Swagger/OpenAPI desteği
 
 ---
 
-# Stateful Audit Logging (v6)
+# Stateful Audit Logging
 
-Webhook tarafından verilen tüm admission kararları PostgreSQL üzerinde kalıcı olarak saklanmaktadır.
+Tüm admission kararları PostgreSQL üzerinde kalıcı olarak saklanmaktadır.
 
-Kaydedilen bilgiler:
+Saklanan bilgiler:
 
 - namespace
 - pod name
 - image
-- decision (allow / deny)
+- decision
 - policy
 - reason
 - environment
@@ -87,11 +82,11 @@ Kaydedilen bilgiler:
 Bu yapı sayesinde:
 
 - En çok reddedilen policy analizi
-- Problemli namespace analizi
-- Zaman bazlı güvenlik incelemesi
-- Admission davranış geçmişi
+- Namespace bazlı güvenlik analizi
+- Admission geçmişi incelemesi
+- Audit analytics raporlaması
 
-gibi analizler gerçekleştirilebilir.
+gerçekleştirilebilir.
 
 ## Örnek log:
 
@@ -109,12 +104,16 @@ id | namespace | pod_name              | image        | decision | policy   | re
 
 ---
 
-# Teknolojiler
-- Python
-- FastAPI
-- Kubernetes
-- Prometheus
-- Grafana
-- Docker
-- Minikube
-- PostgreSQL
+# API Endpointleri
+
+| Endpoint | Açıklama |
+|---|---|
+| `/audit/summary` | Admission audit özet bilgilerini döndürür |
+| `/health` | Webhook sağlık durumunu döndürür |
+| `/health/db` | PostgreSQL bağlantı durumunu kontrol eder |
+
+Swagger UI:
+
+```text
+https://localhost:8443/docs
+```
