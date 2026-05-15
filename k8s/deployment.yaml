@@ -14,19 +14,49 @@ spec:
         app: pod-security-webhook
     spec:
       serviceAccountName: pod-security-webhook
+
       containers:
         - name: webhook
-          image: cemo07/pod-security-webhook:v5.1
+          image: cemo07/pod-security-webhook:v6.2
           imagePullPolicy: Always
+
           ports:
             - containerPort: 8443
               name: https
+
             - containerPort: 9091
               name: metrics
+
+          env:
+            - name: DB_HOST
+              value: postgres.db.svc.cluster.local
+
+            - name: DB_PORT
+              value: "5432"
+
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+
           volumeMounts:
             - name: tls-certs
               mountPath: /tls
               readOnly: true
+
       volumes:
         - name: tls-certs
           secret:

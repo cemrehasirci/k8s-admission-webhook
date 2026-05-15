@@ -1,11 +1,19 @@
 import os
 import time
 import logging
-
-from fastapi import FastAPI, Request
 import uvicorn
 
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
+from typing import Optional
+
 from prometheus_client import Counter, Histogram, start_http_server
+
+from audit_logger import save_audit_log
+
+from audit_summary import get_audit_summary, check_database_health
+from fastapi.responses import JSONResponse
+
 
 from policies import (
     init_k8s_client,
@@ -45,9 +53,36 @@ ADMISSION_LATENCY = Histogram(
 )
 
 # =====================================================
+# RESPONSE MODELS
+# =====================================================
+class AuditItem(BaseModel):
+    policy: Optional[str] = None
+    namespace: Optional[str] = None
+    count: int = 0
+
+
+class AuditSummaryResponse(BaseModel):
+    total_requests: int
+    allowed_requests: int
+    denied_requests: int
+    most_denied_policy: Optional[AuditItem] = None
+    most_problematic_namespace: Optional[AuditItem] = None
+
+# =====================================================
 # FASTAPI APP
 # =====================================================
-app = FastAPI()
+app = FastAPI(
+    title="Kubernetes Admission Webhook API",
+    description=(
+        "A Validating Admission Webhook API for Kubernetes Pod security policies. "
+        "It validates Pod creation requests, records admission decisions, "
+        "and provides audit analytics from PostgreSQL."
+    ),
+    version="6.2.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
 
 # =====================================================
 # CONFIG
@@ -61,10 +96,6 @@ DEFAULT_ENVIRONMENT = os.getenv("DEFAULT_ENVIRONMENT", "dev")
 # =====================================================
 # K8S CLIENT
 # =====================================================
-# Needed for:
-# - PVC lookup in storage policy
-# - Namespace label lookup for environment detection
-# - ConfigMap lookup for environment-based policies
 core_v1 = init_k8s_client()
 
 # =====================================================
@@ -83,8 +114,6 @@ def admission_response(uid: str, allowed: bool, message: str, warnings: list[str
         }
     }
 
-    # Kubernetes AdmissionReview supports warning messages.
-    # In dev environment, root user usage can be allowed but returned as warning.
     if warnings:
         response["response"]["warnings"] = warnings
 
@@ -147,7 +176,11 @@ def log_decision(
 # =====================================================
 # WEBHOOK ENDPOINT
 # =====================================================
-@app.post("/validate")
+@app.post(
+    "/validate",
+    include_in_schema=False
+)
+
 async def validate(request: Request):
     start_time = time.time()
     body = await request.json()
@@ -179,6 +212,11 @@ async def validate(request: Request):
     spec = pod.get("spec", {}) or {}
     meta = pod.get("metadata", {}) or {}
     pod_name = meta.get("name", "unknown")
+
+    # Extract container images
+    containers = spec.get("containers", [])
+    images = [container.get("image", "unknown") for container in containers]
+    image_text = ",".join(images)
 
     # Namespace can come from AdmissionReview request.
     # If not available there, fallback to pod metadata.
@@ -216,6 +254,16 @@ async def validate(request: Request):
             start_time=start_time
         )
 
+        save_audit_log(
+            namespace=namespace,
+            pod_name=pod_name,
+            image=image_text,
+            decision="deny",
+            policy="storage",
+            reason=msg,
+            environment=environment
+        )
+
         return admission_response(uid, False, msg)
 
     # 2) Image policy
@@ -236,6 +284,16 @@ async def validate(request: Request):
             pod_name=pod_name,
             reason=msg,
             start_time=start_time
+        )
+
+        save_audit_log(
+            namespace=namespace,
+            pod_name=pod_name,
+            image=image_text,
+            decision="deny",
+            policy="image",
+            reason=msg,
+            environment=environment
         )
 
         return admission_response(uid, False, msg)
@@ -260,6 +318,16 @@ async def validate(request: Request):
             start_time=start_time
         )
 
+        save_audit_log(
+            namespace=namespace,
+            pod_name=pod_name,
+            image=image_text,
+            decision="deny",
+            policy="security",
+            reason=msg,
+            environment=environment
+        )
+
         return admission_response(uid, False, msg)
 
     # 4) Resource policy
@@ -282,6 +350,16 @@ async def validate(request: Request):
                 start_time=start_time
             )
 
+            save_audit_log(
+                namespace=namespace,
+                pod_name=pod_name,
+                image=image_text,
+                decision="deny",
+                policy="resources",
+                reason=msg,
+                environment=environment
+            )
+
             return admission_response(uid, False, msg)
 
     # Allow
@@ -302,6 +380,16 @@ async def validate(request: Request):
             warnings=warnings
         )
 
+        save_audit_log(
+            namespace=namespace,
+            pod_name=pod_name,
+            image=image_text,
+            decision="allow_with_warning",
+            policy="security",
+            reason="Allowed with warnings",
+            environment=environment
+        )
+
         return admission_response(uid, True, "Allowed with warnings", warnings)
 
     log_decision(
@@ -316,8 +404,77 @@ async def validate(request: Request):
         start_time=start_time
     )
 
+    save_audit_log(
+        namespace=namespace,
+        pod_name=pod_name,
+        image=image_text,
+        decision="allow",
+        policy="all",
+        reason="Allowed",
+        environment=environment
+    )
+
     return admission_response(uid, True, "Allowed")
 
+# =====================================================
+# HEALTH ENDPOINT
+# =====================================================
+@app.get(
+    "/health",
+    tags=["Health"],
+    summary="Check webhook health",
+    description="Returns basic health status of the admission webhook application."
+)
+async def health():
+    return {
+        "status": "healthy",
+        "service": "pod-security-webhook"
+    }
+
+
+# =====================================================
+# DATABASE HEALTH ENDPOINT
+# =====================================================
+@app.get(
+    "/health/db",
+    tags=["Health"],
+    summary="Check PostgreSQL health",
+    description="Checks whether the webhook can connect to the PostgreSQL audit database."
+)
+async def database_health():
+    result = check_database_health()
+
+    if result.get("status") == "unhealthy":
+        return JSONResponse(
+            status_code=500,
+            content=result
+        )
+
+    return result
+
+# =====================================================
+# AUDIT SUMMARY ENDPOINT
+# =====================================================
+@app.get(
+    "/audit/summary",
+    tags=["Audit Analytics"],
+    summary="Get admission audit summary",
+    description="Returns aggregated admission decision statistics from PostgreSQL, including allow/deny counts, most denied policy, and most problematic namespace.",
+    response_model=AuditSummaryResponse
+)
+async def audit_summary():
+    summary = get_audit_summary()
+
+    if "error" in summary:
+        return JSONResponse(
+            content={
+                "status": "error",
+                "message": summary["error"]
+            },
+            status_code=500
+        )
+
+    return summary
 
 if __name__ == "__main__":
     uvicorn.run(
