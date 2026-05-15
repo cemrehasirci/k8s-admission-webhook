@@ -115,3 +115,37 @@ def get_audit_summary():
         return {
             "error": str(e)
         }
+        
+def check_database_health():
+    """
+    Checks PostgreSQL connection status.
+    """
+
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            connect_timeout=2
+        )
+
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        return {
+            "status": "healthy",
+            "database": "connected"
+        }
+
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "database": "unreachable",
+            "error": str(e)
+        }

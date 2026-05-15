@@ -17,7 +17,7 @@ spec:
 
       containers:
         - name: webhook
-          image: cemo07/pod-security-webhook:v6.1
+          image: cemo07/pod-security-webhook:v6.2
           imagePullPolicy: Always
 
           ports:

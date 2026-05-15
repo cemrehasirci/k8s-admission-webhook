@@ -1,16 +1,19 @@
 import os
 import time
 import logging
+import uvicorn
 
 from fastapi import FastAPI, Request
-import uvicorn
+from pydantic import BaseModel
+from typing import Optional
 
 from prometheus_client import Counter, Histogram, start_http_server
 
 from audit_logger import save_audit_log
 
-from audit_summary import get_audit_summary
+from audit_summary import get_audit_summary, check_database_health
 from fastapi.responses import JSONResponse
+
 
 from policies import (
     init_k8s_client,
@@ -50,9 +53,36 @@ ADMISSION_LATENCY = Histogram(
 )
 
 # =====================================================
+# RESPONSE MODELS
+# =====================================================
+class AuditItem(BaseModel):
+    policy: Optional[str] = None
+    namespace: Optional[str] = None
+    count: int = 0
+
+
+class AuditSummaryResponse(BaseModel):
+    total_requests: int
+    allowed_requests: int
+    denied_requests: int
+    most_denied_policy: Optional[AuditItem] = None
+    most_problematic_namespace: Optional[AuditItem] = None
+
+# =====================================================
 # FASTAPI APP
 # =====================================================
-app = FastAPI()
+app = FastAPI(
+    title="Kubernetes Admission Webhook API",
+    description=(
+        "A Validating Admission Webhook API for Kubernetes Pod security policies. "
+        "It validates Pod creation requests, records admission decisions, "
+        "and provides audit analytics from PostgreSQL."
+    ),
+    version="6.2.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
 
 # =====================================================
 # CONFIG
@@ -146,7 +176,11 @@ def log_decision(
 # =====================================================
 # WEBHOOK ENDPOINT
 # =====================================================
-@app.post("/validate")
+@app.post(
+    "/validate",
+    include_in_schema=False
+)
+
 async def validate(request: Request):
     start_time = time.time()
     body = await request.json()
@@ -383,9 +417,51 @@ async def validate(request: Request):
     return admission_response(uid, True, "Allowed")
 
 # =====================================================
+# HEALTH ENDPOINT
+# =====================================================
+@app.get(
+    "/health",
+    tags=["Health"],
+    summary="Check webhook health",
+    description="Returns basic health status of the admission webhook application."
+)
+async def health():
+    return {
+        "status": "healthy",
+        "service": "pod-security-webhook"
+    }
+
+
+# =====================================================
+# DATABASE HEALTH ENDPOINT
+# =====================================================
+@app.get(
+    "/health/db",
+    tags=["Health"],
+    summary="Check PostgreSQL health",
+    description="Checks whether the webhook can connect to the PostgreSQL audit database."
+)
+async def database_health():
+    result = check_database_health()
+
+    if result.get("status") == "unhealthy":
+        return JSONResponse(
+            status_code=500,
+            content=result
+        )
+
+    return result
+
+# =====================================================
 # AUDIT SUMMARY ENDPOINT
 # =====================================================
-@app.get("/audit/summary")
+@app.get(
+    "/audit/summary",
+    tags=["Audit Analytics"],
+    summary="Get admission audit summary",
+    description="Returns aggregated admission decision statistics from PostgreSQL, including allow/deny counts, most denied policy, and most problematic namespace.",
+    response_model=AuditSummaryResponse
+)
 async def audit_summary():
     summary = get_audit_summary()
 
@@ -398,10 +474,7 @@ async def audit_summary():
             status_code=500
         )
 
-    return JSONResponse(
-        content=summary,
-        status_code=200
-    )
+    return summary
 
 if __name__ == "__main__":
     uvicorn.run(
