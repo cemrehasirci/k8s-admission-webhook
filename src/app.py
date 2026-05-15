@@ -9,6 +9,9 @@ from prometheus_client import Counter, Histogram, start_http_server
 
 from audit_logger import save_audit_log
 
+from audit_summary import get_audit_summary
+from fastapi.responses import JSONResponse
+
 from policies import (
     init_k8s_client,
     get_namespace_environment,
@@ -63,10 +66,6 @@ DEFAULT_ENVIRONMENT = os.getenv("DEFAULT_ENVIRONMENT", "dev")
 # =====================================================
 # K8S CLIENT
 # =====================================================
-# Needed for:
-# - PVC lookup in storage policy
-# - Namespace label lookup for environment detection
-# - ConfigMap lookup for environment-based policies
 core_v1 = init_k8s_client()
 
 # =====================================================
@@ -85,8 +84,6 @@ def admission_response(uid: str, allowed: bool, message: str, warnings: list[str
         }
     }
 
-    # Kubernetes AdmissionReview supports warning messages.
-    # In dev environment, root user usage can be allowed but returned as warning.
     if warnings:
         response["response"]["warnings"] = warnings
 
@@ -385,6 +382,26 @@ async def validate(request: Request):
 
     return admission_response(uid, True, "Allowed")
 
+# =====================================================
+# AUDIT SUMMARY ENDPOINT
+# =====================================================
+@app.get("/audit/summary")
+async def audit_summary():
+    summary = get_audit_summary()
+
+    if "error" in summary:
+        return JSONResponse(
+            content={
+                "status": "error",
+                "message": summary["error"]
+            },
+            status_code=500
+        )
+
+    return JSONResponse(
+        content=summary,
+        status_code=200
+    )
 
 if __name__ == "__main__":
     uvicorn.run(
