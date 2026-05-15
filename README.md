@@ -14,6 +14,10 @@ Admission kararları aşağıdaki yapılar ile gözlemlenebilir hale getirilmiş
 
 ---
 
+## Architecture
+
+![Architecture](assets/architecture.png)
+
 # Features
 
 ## Security Policies
