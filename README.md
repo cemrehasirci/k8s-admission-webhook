@@ -2,7 +2,15 @@
 
 Kubernetes üzerinde çalışan Pod’ların güvenlik ve kaynak politikalarına uygunluğunu kontrol eden bir **Validating Admission Webhook** projesidir.
 
-Webhook, Pod oluşturma isteklerini değerlendirerek belirlenen kurallara göre **ALLOW / DENY** kararı verir. Ayrıca admission kararları Prometheus metrikleri, Grafana dashboard’ları ve structured logging ile gözlemlenebilir hale getirilmiştir.
+Webhook, Pod oluşturma isteklerini değerlendirerek belirlenen kurallara göre **ALLOW / DENY** kararı verir.
+
+Admission kararları:
+- Prometheus metrikleri
+- Grafana dashboard’ları
+- Structured logging
+- PostgreSQL tabanlı stateful audit logging
+
+ile gözlemlenebilir hale getirilmiştir.
 
 ---
 
@@ -59,10 +67,44 @@ Webhook namespace label’larına göre farklı policy davranışları uygular.
 - Structured decision logging
 - Admission latency tracking
 
-Örnek log:
+---
+
+# Stateful Audit Logging (v6)
+
+Webhook tarafından verilen tüm admission kararları PostgreSQL üzerinde kalıcı olarak saklanmaktadır.
+
+Kaydedilen bilgiler:
+
+- namespace
+- pod name
+- image
+- decision (allow / deny)
+- policy
+- reason
+- environment
+- timestamp
+
+Bu yapı sayesinde:
+
+- En çok reddedilen policy analizi
+- Problemli namespace analizi
+- Zaman bazlı güvenlik incelemesi
+- Admission davranış geçmişi
+
+gibi analizler gerçekleştirilebilir.
+
+## Örnek log:
 
 ```text
 2026-05-13 18:04:55,100 WARNING EVENT=admission_review DECISION=DENY POLICY=image NAMESPACE=test POD=test-latest-deny REASON="Latest or tagless image not allowed: nginx (nginx:latest)" WARNINGS="-"
+```
+
+## Örnek Audit Kaydı
+
+```text
+id | namespace | pod_name              | image        | decision | policy   | reason
+---|-----------|----------------------|--------------|----------|-----------|------------------------------
+2  | test      | test-privileged-deny | nginx:1.25   | deny     | security | Privileged container: nginx
 ```
 
 ---
@@ -75,3 +117,4 @@ Webhook namespace label’larına göre farklı policy davranışları uygular.
 - Grafana
 - Docker
 - Minikube
+- PostgreSQL
