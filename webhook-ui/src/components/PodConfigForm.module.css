@@ -1,0 +1,139 @@
+.form {
+  /* top-level form container */
+}
+
+.formLayout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+}
+
+@media (max-width: 1024px) {
+  .formLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.formFields {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.yamlSide {
+  display: flex;
+  flex-direction: column;
+}
+
+.section {
+  margin-bottom: 8px;
+}
+.sectionTitle {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 12px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+.submitBtn {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 16px;
+  border-radius: 12px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  margin-top: 24px;
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+  font-family: inherit;
+}
+.submitBtn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%; width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transform: skewX(-20deg);
+  transition: all 0.5s ease;
+}
+.submitBtn:hover:not(:disabled) {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 15px 35px rgba(139, 92, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.submitBtn:hover:not(:disabled)::before {
+  left: 150%;
+}
+.submitBtn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+.submitBtn:disabled {
+  background: var(--panel-bg);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  border-color: transparent;
+}
+
+.yamlPreviewContainer {
+  margin-top: 0;
+  height: 900px;
+  background: var(--panel-menu-bg);
+  border-radius: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.1);
+}
+
+.yamlHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 0.9rem;
+  color: var(--primary-hover);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.copyBtn {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: var(--primary-hover);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.copyBtn:hover {
+  background: rgba(56, 189, 248, 0.3);
+  color: var(--primary);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.yamlCode {
+  padding: 20px;
+  margin: 0;
+  color: var(--primary-hover);
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.85rem;
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  line-height: 1.5;
+  text-shadow: 0 0 5px rgba(56, 189, 248, 0.2);
+}

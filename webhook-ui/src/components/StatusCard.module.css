@@ -1,0 +1,48 @@
+.card {
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  animation: slideIn 0.3s ease-out;
+}
+.success {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+.icon {
+  margin-top: 2px;
+}
+.success .icon {
+  color: var(--success);
+}
+.error .icon {
+  color: var(--error);
+}
+.content {
+  flex: 1;
+}
+.title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.success .title {
+  color: var(--success);
+}
+.error .title {
+  color: var(--error);
+}
+.message {
+  font-size: 0.9rem;
+  color: #e2e8f0;
+  word-break: break-word;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
