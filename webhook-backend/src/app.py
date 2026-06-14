@@ -9,13 +9,13 @@ from typing import Optional
 
 from prometheus_client import Counter, Histogram, start_http_server
 
-from audit_logger import save_audit_log
+from backend.src.audit_logger import save_audit_log
 
-from audit_summary import get_audit_summary, check_database_health
+from backend.src.audit_summary import get_audit_summary, check_database_health
 from fastapi.responses import JSONResponse
 
 
-from policies import (
+from backend.src.policies import (
     init_k8s_client,
     get_namespace_environment,
     load_policy_for_environment,
