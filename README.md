@@ -40,6 +40,24 @@ Webhook namespace label'larına göre farklı policy davranışları uygular.
 
 ---
 
+# Storage Policy
+
+Webhook, Pod içerisinde kullanılan storage yapılarını kontrol eder.
+
+| Storage Usage | Result | Description |
+|----------|----------|----------|
+| hostPath Volume | ❌ DENY | Host dosya sistemine doğrudan erişim riski oluşturduğu için reddedilir. |
+| Approved StorageClass | ✅ ALLOW | İzin verilen StorageClass değerleri kabul edilir. |
+| Unapproved StorageClass | ❌ DENY | İzin verilen listede olmayan StorageClass değerleri reddedilir. |
+
+v6.3 ile birlikte webhook birden fazla StorageClass kabul edecek şekilde güncellenmiştir.
+
+```yaml
+ALLOWED_STORAGE_CLASSES=longhorn,standard
+```
+
+---
+
 # Observability
 
 | Feature | Description |
