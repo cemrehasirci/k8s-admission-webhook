@@ -9,13 +9,13 @@ from typing import Optional
 
 from prometheus_client import Counter, Histogram, start_http_server
 
-from backend.src.audit_logger import save_audit_log
+from audit_logger import save_audit_log
 
-from backend.src.audit_summary import get_audit_summary, check_database_health
+from audit_summary import get_audit_summary, check_database_health
 from fastapi.responses import JSONResponse
 
 
-from backend.src.policies import (
+from policies import (
     init_k8s_client,
     get_namespace_environment,
     load_policy_for_environment,
@@ -87,7 +87,11 @@ app = FastAPI(
 # =====================================================
 # CONFIG
 # =====================================================
-ENFORCED_STORAGE_CLASS = os.getenv("ENFORCED_STORAGE_CLASS", "longhorn")
+ALLOWED_STORAGE_CLASSES = [
+    sc.strip()
+    for sc in os.getenv("ALLOWED_STORAGE_CLASSES", "longhorn,standard").split(",")
+    if sc.strip()
+]
 
 POLICY_CONFIGMAP_NAME = os.getenv("POLICY_CONFIGMAP_NAME", "webhook-policy-config")
 POLICY_CONFIGMAP_NAMESPACE = os.getenv("POLICY_CONFIGMAP_NAMESPACE", "webhook-system")
@@ -237,7 +241,7 @@ async def validate(request: Request):
     )
 
     # 1) Storage policy
-    ok, msg = validate_storage(pod, core_v1, ENFORCED_STORAGE_CLASS)
+    ok, msg = validate_storage(pod, core_v1, ALLOWED_STORAGE_CLASSES)
     if not ok:
         ADMISSION_DENIED.inc()
         ADMISSION_LATENCY.observe(time.time() - start_time)

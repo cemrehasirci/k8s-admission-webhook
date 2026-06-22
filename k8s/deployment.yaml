@@ -17,7 +17,7 @@ spec:
 
       containers:
         - name: webhook
-          image: cemo07/pod-security-webhook:v6.2
+          image: cemo07/pod-security-webhook:v6.3
           imagePullPolicy: Always
 
           ports:
@@ -28,6 +28,9 @@ spec:
               name: metrics
 
           env:
+            - name: ALLOWED_STORAGE_CLASSES
+              value: "longhorn,standard"
+
             - name: DB_HOST
               value: postgres.db.svc.cluster.local
 
