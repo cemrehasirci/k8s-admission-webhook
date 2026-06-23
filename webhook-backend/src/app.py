@@ -47,6 +47,18 @@ ADMISSION_REQUESTS = Counter("admission_requests_total", "Total admission reques
 ADMISSION_ALLOWED = Counter("admission_requests_allowed_total", "Allowed admission requests")
 ADMISSION_DENIED = Counter("admission_requests_denied_total", "Denied admission requests")
 
+ADMISSION_POD_ALLOWED = Counter(
+    "admission_pod_allowed_total",
+    "Allowed Pod admission requests with pod details",
+    ["namespace", "pod_name", "environment", "image"]
+)
+
+ADMISSION_POD_DENIED = Counter(
+    "admission_pod_denied_total",
+    "Denied Pod admission requests with pod details",
+    ["namespace", "pod_name", "environment", "policy", "reason", "image"]
+)
+
 ADMISSION_LATENCY = Histogram(
     "admission_request_duration_seconds",
     "Admission webhook latency"
@@ -244,6 +256,14 @@ async def validate(request: Request):
     ok, msg = validate_storage(pod, core_v1, ALLOWED_STORAGE_CLASSES)
     if not ok:
         ADMISSION_DENIED.inc()
+        ADMISSION_POD_DENIED.labels(
+            namespace=namespace,
+            pod_name=pod_name,
+            environment=environment,
+            policy="storage",
+            reason=msg,
+            image=image_text
+        ).inc()
         ADMISSION_LATENCY.observe(time.time() - start_time)
 
         log_decision(
@@ -276,6 +296,14 @@ async def validate(request: Request):
     ok, msg = validate_images(spec, policy)
     if not ok:
         ADMISSION_DENIED.inc()
+        ADMISSION_POD_DENIED.labels(
+            namespace=namespace,
+            pod_name=pod_name,
+            environment=environment,
+            policy="image",
+            reason=msg,
+            image=image_text
+        ).inc()
         ADMISSION_LATENCY.observe(time.time() - start_time)
 
         log_decision(
@@ -308,6 +336,14 @@ async def validate(request: Request):
     ok, msg, warnings = validate_security(spec, policy)
     if not ok:
         ADMISSION_DENIED.inc()
+        ADMISSION_POD_DENIED.labels(
+            namespace=namespace,
+            pod_name=pod_name,
+            environment=environment,
+            policy="security",
+            reason=msg,
+            image=image_text
+        ).inc()
         ADMISSION_LATENCY.observe(time.time() - start_time)
 
         log_decision(
@@ -340,6 +376,14 @@ async def validate(request: Request):
         ok, msg = validate_resources(spec)
         if not ok:
             ADMISSION_DENIED.inc()
+            ADMISSION_POD_DENIED.labels(
+                namespace=namespace,
+                pod_name=pod_name,
+                environment=environment,
+                policy="resources",
+                reason=msg,
+                image=image_text
+            ).inc()
             ADMISSION_LATENCY.observe(time.time() - start_time)
 
             log_decision(
@@ -369,6 +413,12 @@ async def validate(request: Request):
     # Allow
     ADMISSION_ALLOWED.inc()
     ADMISSION_LATENCY.observe(time.time() - start_time)
+    ADMISSION_POD_ALLOWED.labels(
+        namespace=namespace,
+        pod_name=pod_name,
+        environment=environment,
+        image=image_text
+    ).inc()
 
     if warnings:
         log_decision(
