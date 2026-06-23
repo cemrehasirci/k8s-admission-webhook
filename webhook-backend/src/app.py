@@ -11,8 +11,10 @@ from prometheus_client import Counter, Histogram, start_http_server
 
 from audit_logger import save_audit_log
 
-from audit_summary import get_audit_summary, check_database_health
-from fastapi.responses import JSONResponse
+from audit_summary import get_audit_summary, check_database_health, get_dashboard_stats
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 
 from policies import (
@@ -529,6 +531,246 @@ async def audit_summary():
         )
 
     return summary
+
+# =====================================================
+# UI API ENDPOINTS
+# =====================================================
+
+@app.get("/api/namespaces", tags=["UI API"])
+async def get_namespaces():
+    try:
+        res = await run_in_threadpool(core_v1.list_namespace)
+        namespaces = [ns.metadata.name for ns in res.items]
+        return {"namespaces": namespaces}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/dashboard/stats", tags=["UI API"])
+async def dashboard_stats():
+    stats = get_dashboard_stats()
+    if "error" in stats:
+        return JSONResponse(status_code=500, content={"error": stats["error"]})
+    return stats
+
+
+@app.get("/api/pods", tags=["UI API"])
+async def get_pods():
+    try:
+        res = await run_in_threadpool(core_v1.list_pod_for_all_namespaces)
+        pods = []
+        for p in res.items:
+            exact_status = p.status.phase or 'Unknown'
+            if p.status.container_statuses:
+                for c in p.status.container_statuses:
+                    if c.state.waiting and c.state.waiting.reason:
+                        exact_status = c.state.waiting.reason
+                        break
+                    elif c.state.terminated and c.state.terminated.reason:
+                        exact_status = c.state.terminated.reason
+                        break
+            
+            pods.append({
+                "name": p.metadata.name or 'Unknown',
+                "namespace": p.metadata.namespace or 'Unknown',
+                "status": exact_status,
+                "startTime": p.status.start_time.strftime("%Y-%m-%d %H:%M:%S") if p.status.start_time else 'N/A'
+            })
+        return {"pods": pods}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.delete("/api/pods", tags=["UI API"])
+async def delete_pod(name: str, namespace: str):
+    if not name or not namespace:
+        return JSONResponse(status_code=400, content={"error": "Name ve namespace gereklidir."})
+    try:
+        await run_in_threadpool(core_v1.delete_namespaced_pod, name=name, namespace=namespace)
+        return {"success": True, "message": f"Pod {name} başarıyla silindi."}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/logs", tags=["UI API"])
+async def get_logs():
+    try:
+        pods = await run_in_threadpool(core_v1.list_namespaced_pod, namespace="webhook-system")
+        webhook_pod = None
+        for p in pods.items:
+            if p.metadata.name and p.metadata.name.startswith("pod-security-webhook-") and p.status.phase == "Running" and not p.metadata.deletion_timestamp:
+                webhook_pod = p
+                break
+        
+        if not webhook_pod:
+            return {"logs": "Webhook pod bulunamadı. Lütfen webhook-system namespace'ini ve pod isimlerini kontrol edin."}
+        
+        logs = await run_in_threadpool(
+            core_v1.read_namespaced_pod_log,
+            name=webhook_pod.metadata.name,
+            namespace="webhook-system",
+            container="webhook",
+            tail_lines=1000
+        )
+            
+        return {"logs": logs}
+    except Exception as e:
+        return {"logs": f"Loglar alınırken hata oluştu: {str(e)}"}
+
+@app.post("/api/pod", tags=["UI API"])
+async def create_pod(request: Request):
+    try:
+        body = await request.json()
+        pod_name = f"test-pod-{int(time.time())}"
+        
+        image = body.get("image")
+        if image == "unprivileged":
+            image = "nginxinc/nginx-unprivileged:alpine"
+        elif image == "latest":
+            image = "nginx:latest"
+        elif image == "alpine":
+            image = "nginx:alpine"
+            
+        containers_spec = {
+            "name": "test-container",
+            "image": image,
+            "securityContext": {},
+            "volumeMounts": [],
+            "env": []
+        }
+        
+        # Kubernetes API'sinin çelişkileri (privileged=True & allowPrivilegeEscalation=False) 
+        # yakalayabilmesi için alanları gizlemek yerine açıkça True/False olarak gönderiyoruz
+        if "privileged" in body:
+            containers_spec["securityContext"]["privileged"] = bool(body.get("privileged"))
+        if "allowPrivilegeEscalation" in body:
+            containers_spec["securityContext"]["allowPrivilegeEscalation"] = bool(body.get("allowPrivilegeEscalation"))
+            
+        pod_manifest = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": pod_name,
+                "namespace": body.get("namespace", "default"),
+                "labels": {
+                    "app": "webhook-test"
+                },
+                "annotations": {}
+            },
+            "spec": {
+                "securityContext": {},
+                "containers": [containers_spec],
+                "volumes": []
+            }
+        }
+        
+        if body.get("runAsNonRoot"):
+            pod_manifest["spec"]["securityContext"]["runAsNonRoot"] = True
+            
+        if body.get("runAsRoot"):
+            pod_manifest["spec"]["securityContext"]["runAsUser"] = 0
+            
+        if body.get("vaultAnnotations"):
+            pod_manifest["metadata"]["annotations"]["vault.hashicorp.com/agent-inject"] = "true"
+            pod_manifest["metadata"]["annotations"]["vault.hashicorp.com/role"] = "app-role"
+            
+        volume_type = body.get("volumeType")
+        if volume_type == "hostPath":
+            pod_manifest["spec"]["volumes"].append({
+                "name": "test-vol",
+                "hostPath": {"path": "/tmp/test"}
+            })
+            containers_spec["volumeMounts"].append({
+                "name": "test-vol",
+                "mountPath": "/data"
+            })
+        elif volume_type == "emptyDir":
+            pod_manifest["spec"]["volumes"].append({
+                "name": "test-vol",
+                "emptyDir": {}
+            })
+            containers_spec["volumeMounts"].append({
+                "name": "test-vol",
+                "mountPath": "/data"
+            })
+        elif volume_type == "pvc":
+            pod_manifest["spec"]["volumes"].append({
+                "name": "test-vol",
+                "persistentVolumeClaim": {"claimName": body.get("pvcName", "test-pvc")}
+            })
+            containers_spec["volumeMounts"].append({
+                "name": "test-vol",
+                "mountPath": "/data"
+            })
+            
+        if body.get("useNativeSecret"):
+            containers_spec["env"].append({
+                "name": "SECRET_KEY",
+                "valueFrom": {
+                    "secretKeyRef": {
+                        "name": "my-secret",
+                        "key": "password"
+                    }
+                }
+            })
+            
+        if body.get("includeResources"):
+            containers_spec["resources"] = {
+                "requests": {"cpu": "100m", "memory": "128Mi"},
+                "limits": {"cpu": "200m", "memory": "256Mi"}
+            }
+            
+        if not containers_spec["volumeMounts"]:
+            del containers_spec["volumeMounts"]
+        if not containers_spec["env"]:
+            del containers_spec["env"]
+        if not pod_manifest["spec"]["volumes"]:
+            del pod_manifest["spec"]["volumes"]
+        if not pod_manifest["metadata"]["annotations"]:
+            del pod_manifest["metadata"]["annotations"]
+            
+        try:
+            res = await run_in_threadpool(
+                core_v1.create_namespaced_pod,
+                namespace=pod_manifest["metadata"]["namespace"],
+                body=pod_manifest
+            )
+            return {"success": True, "message": "Pod başarıyla oluşturuldu (ALLOW)", "pod": res.to_dict()}
+        except Exception as err:
+            import json
+            try:
+                err_body = json.loads(err.body)
+                msg = err_body.get("message", str(err))
+                reason = err_body.get("reason", "DENY")
+            except:
+                msg = str(err)
+                reason = "DENY"
+            return JSONResponse(status_code=400, content={"success": False, "message": msg, "reason": reason})
+            
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+# =====================================================
+# NEXT.JS UI STATIC FILE SERVING
+# =====================================================
+
+@app.exception_handler(404)
+async def custom_404_handler(request: Request, exc):
+    static_path = os.path.join(os.path.dirname(__file__), "static")
+    path = request.url.path
+    
+    html_file = os.path.join(static_path, path.lstrip('/') + '.html')
+    if os.path.isfile(html_file):
+        with open(html_file, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read(), status_code=200)
+            
+    index_file = os.path.join(static_path, "index.html")
+    if os.path.isfile(index_file):
+        with open(index_file, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read(), status_code=200)
+    
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+static_path = os.path.join(os.path.dirname(__file__), "static")
+if os.path.isdir(static_path):
+    app.mount("/", StaticFiles(directory=static_path, html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run(

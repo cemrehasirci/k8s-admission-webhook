@@ -1,5 +1,9 @@
 .formGroup {
   margin-bottom: 20px;
+  position: relative;
+}
+.formGroup:focus-within, .formGroup:hover {
+  z-index: 10;
 }
 .label {
   display: block;
