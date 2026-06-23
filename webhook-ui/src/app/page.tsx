@@ -97,7 +97,8 @@ export default function Home() {
           position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 9999,
           background: toast.type === 'success' ? '#10b981' : '#ef4444', color: '#fff',
           padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-          animation: 'slideDown 0.3s ease-out'
+          animation: 'slideDown 0.3s ease-out',
+          maxWidth: '500px', width: '90%', wordBreak: 'break-all', textAlign: 'center'
         }}>
           {toast.message}
         </div>

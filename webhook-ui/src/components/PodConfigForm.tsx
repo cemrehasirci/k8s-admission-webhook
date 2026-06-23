@@ -16,6 +16,10 @@ export interface PodConfig {
   useNativeSecret: boolean;
   vaultAnnotations: boolean;
   includeResources: boolean;
+  cpuRequest: string;
+  memoryRequest: string;
+  cpuLimit: string;
+  memoryLimit: string;
 }
 
 interface PodConfigFormProps {
@@ -41,7 +45,11 @@ export function PodConfigForm({ onSubmit, loading }: PodConfigFormProps) {
     pvcName: 'longhorn-pvc',
     useNativeSecret: false,
     vaultAnnotations: true,
-    includeResources: true
+    includeResources: true,
+    cpuRequest: '100',
+    memoryRequest: '128',
+    cpuLimit: '200',
+    memoryLimit: '256'
   });
 
   useEffect(() => {
@@ -86,7 +94,7 @@ spec:
   securityContext:
 ${config.runAsRoot ? '    runAsUser: 0\n' : ''}${config.runAsNonRoot ? '    runAsNonRoot: true\n' : ''}  containers:
     - name: test-container
-      image: ${config.image === 'unprivileged' ? 'nginxinc/nginx-unprivileged:latest' : config.image === 'latest' ? 'nginx:latest' : config.image === 'alpine' ? 'nginx:alpine' : config.image}`;
+      image: ${config.image === 'unprivileged' ? 'nginxinc/nginx-unprivileged:alpine' : config.image === 'latest' ? 'nginx:latest' : config.image === 'alpine' ? 'nginx:alpine' : config.image}`;
 
     const containerScProps = [];
     if (config.runAsNonRoot) containerScProps.push('        runAsNonRoot: true');
@@ -100,11 +108,11 @@ ${config.runAsRoot ? '    runAsUser: 0\n' : ''}${config.runAsNonRoot ? '    runA
     if (config.includeResources) {
       yaml += `\n      resources:
         requests:
-          cpu: 100m
-          memory: 128Mi
+          cpu: ${config.cpuRequest}m
+          memory: ${config.memoryRequest}Mi
         limits:
-          cpu: 200m
-          memory: 256Mi`;
+          cpu: ${config.cpuLimit}m
+          memory: ${config.memoryLimit}Mi`;
     }
 
     if (config.volumeType !== 'none') {
@@ -203,6 +211,42 @@ ${config.runAsRoot ? '    runAsUser: 0\n' : ''}${config.runAsNonRoot ? '    runA
           active={config.includeResources} 
           onChange={v => handleChange('includeResources', v)} 
         />
+        {config.includeResources && (
+          <div className={styles.resourceInputs}>
+            <div className={styles.resourceRow}>
+              <div className={styles.resourceGroup}>
+                <label>CPU Request</label>
+                <div className={styles.inputWithUnit}>
+                  <input type="number" value={config.cpuRequest} onChange={e => handleChange('cpuRequest', e.target.value)} />
+                  <span className={styles.unit}>m</span>
+                </div>
+              </div>
+              <div className={styles.resourceGroup}>
+                <label>Memory Request</label>
+                <div className={styles.inputWithUnit}>
+                  <input type="number" value={config.memoryRequest} onChange={e => handleChange('memoryRequest', e.target.value)} />
+                  <span className={styles.unit}>Mi</span>
+                </div>
+              </div>
+            </div>
+            <div className={styles.resourceRow}>
+              <div className={styles.resourceGroup}>
+                <label>CPU Limit</label>
+                <div className={styles.inputWithUnit}>
+                  <input type="number" value={config.cpuLimit} onChange={e => handleChange('cpuLimit', e.target.value)} />
+                  <span className={styles.unit}>m</span>
+                </div>
+              </div>
+              <div className={styles.resourceGroup}>
+                <label>Memory Limit</label>
+                <div className={styles.inputWithUnit}>
+                  <input type="number" value={config.memoryLimit} onChange={e => handleChange('memoryLimit', e.target.value)} />
+                  <span className={styles.unit}>Mi</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <button type="submit" className={styles.submitBtn} disabled={loading}>

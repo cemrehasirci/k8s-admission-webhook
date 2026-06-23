@@ -137,3 +137,66 @@
   line-height: 1.5;
   text-shadow: 0 0 5px rgba(56, 189, 248, 0.2);
 }
+
+.resourceInputs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+}
+.resourceRow {
+  display: flex;
+  gap: 16px;
+}
+.resourceGroup {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.resourceGroup label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.inputWithUnit {
+  display: flex;
+  align-items: center;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.inputWithUnit:focus-within {
+  border-color: rgba(96, 165, 250, 0.5);
+}
+.inputWithUnit input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  outline: none;
+  width: 100%;
+  font-size: 0.95rem;
+  -moz-appearance: textfield;
+}
+.inputWithUnit input::-webkit-outer-spin-button,
+.inputWithUnit input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.unit {
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-left: 1px solid var(--panel-border);
+  user-select: none;
+}

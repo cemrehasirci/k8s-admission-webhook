@@ -1,0 +1,7 @@
+.git
+webhook-ui/node_modules
+webhook-ui/.next
+webhook-backend/__pycache__
+webhook-backend/venv
+.env
+*.md
