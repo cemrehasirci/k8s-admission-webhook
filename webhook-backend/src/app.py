@@ -256,7 +256,15 @@ async def validate(request: Request):
     )
 
     # 1) Storage policy
-    ok, msg = validate_storage(pod, core_v1, ALLOWED_STORAGE_CLASSES)
+    
+# 1) Storage policy
+    ok, msg, storage_warnings = validate_storage(
+        pod,
+        core_v1,
+        ALLOWED_STORAGE_CLASSES,
+        environment
+    )
+
     if not ok:
         ADMISSION_DENIED.inc()
         ADMISSION_POD_DENIED.labels(
@@ -292,7 +300,7 @@ async def validate(request: Request):
         )
 
         return admission_response(uid, False, msg)
-
+    
     # 2) Image policy
     # dev  -> latest tag is allowed
     # test -> latest or tagless images are denied
@@ -334,9 +342,10 @@ async def validate(request: Request):
         return admission_response(uid, False, msg)
 
     # 3) Security policy
-    # dev  -> root user returns warning but does not deny
-    # test -> root user is denied
-    ok, msg, warnings = validate_security(spec, policy)
+    # dev  -> root user and hostpath returns warning but does not deny
+    # test -> root user and hostpath denied
+    ok, msg, security_warnings = validate_security(spec, policy)
+    warnings = (storage_warnings or []) + (security_warnings or [])
     if not ok:
         ADMISSION_DENIED.inc()
         ADMISSION_POD_DENIED.labels(
@@ -424,15 +433,18 @@ async def validate(request: Request):
     ).inc()
 
     if warnings:
+        warning_policy = "storage" if storage_warnings else "security"
+        warning_reason = "; ".join(warnings)
+
         log_decision(
             level="info",
             uid=uid,
             decision="ALLOW_WITH_WARNING",
-            policy="security",
+            policy=warning_policy,
             environment=environment,
             namespace=namespace,
             pod_name=pod_name,
-            reason="Allowed with warnings",
+            reason=warning_reason,
             start_time=start_time,
             warnings=warnings
         )
@@ -442,8 +454,8 @@ async def validate(request: Request):
             pod_name=pod_name,
             image=image_text,
             decision="allow_with_warning",
-            policy="security",
-            reason="Allowed with warnings",
+            policy=warning_policy,
+            reason=warning_reason,
             environment=environment
         )
 
