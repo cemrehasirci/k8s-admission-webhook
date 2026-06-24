@@ -24,14 +24,12 @@ export function PodList({ refreshTrigger }: { refreshTrigger: number }) {
   const fetchPodsAndNamespaces = async (isManual = false) => {
     if (isManual) setLoading(true);
     try {
-      // 1. Podları Çek
       const podRes = await fetch('/api/pods');
       const podData = await podRes.json();
       if (podData.pods) {
         setPods(podData.pods);
       }
-      
-      // 2. Namespaceleri Çek
+    
       const nsRes = await fetch('/api/namespaces');
       const nsData = await nsRes.json();
       if (nsData.namespaces) {
@@ -44,8 +42,27 @@ export function PodList({ refreshTrigger }: { refreshTrigger: number }) {
     }
   };
 
+  // Otomatik yenilemelerde butonu 'Yenileniyor' yapma
   useEffect(() => {
-    fetchPodsAndNamespaces(false); // Otomatik yenilemelerde butonu 'Yenileniyor' yapma
+    const loadPodsAndNamespaces = async () => {
+      try {
+        const podRes = await fetch('/api/pods');
+        const podData = await podRes.json();
+        if (podData.pods) {
+          setPods(podData.pods);
+        }
+
+        const nsRes = await fetch('/api/namespaces');
+        const nsData = await nsRes.json();
+        if (nsData.namespaces) {
+          setNamespaces(nsData.namespaces);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    loadPodsAndNamespaces();
   }, [refreshTrigger]);
 
   const toggleSelectionMode = () => {
@@ -99,6 +116,35 @@ export function PodList({ refreshTrigger }: { refreshTrigger: number }) {
       alert("Toplu silme sırasında bir hata oluştu.");
       setLoading(false);
     }
+  };
+
+  const formatPodTime = (value?: string) => {
+    if (!value) return "-";
+  
+    const cleaned = value.trim();
+  
+    const match = cleaned.match(
+      /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/
+    );
+  
+    if (!match) return cleaned;
+  
+    const [, y, m, d, h, min, s] = match;
+  
+    const date = new Date(
+      Number(y),
+      Number(m) - 1,
+      Number(d),
+      Number(h),
+      Number(min),
+      Number(s)
+    );
+  
+    date.setHours(date.getHours() + 3);
+  
+    const pad = (n: number) => String(n).padStart(2, "0");
+  
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   };
 
   // Podları filtrele
@@ -174,7 +220,7 @@ export function PodList({ refreshTrigger }: { refreshTrigger: number }) {
                     }>
                       {pod.status}
                     </td>
-                    <td>{pod.startTime}</td>
+                    <td>{formatPodTime(pod.startTime)}</td>                   
                     <td className={styles.actionCell}>
                       {selectionMode ? (
                         <div className={styles.checkboxContainer}>

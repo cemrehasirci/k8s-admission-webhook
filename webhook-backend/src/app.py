@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
+logging.Formatter.converter = time.localtime
 
 from policies import (
     init_k8s_client,
