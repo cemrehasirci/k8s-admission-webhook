@@ -17,9 +17,9 @@ spec:
 
       containers:
         - name: webhook
-          image: cemo07/pod-security-webhook:v6.2
-          imagePullPolicy: Always
-
+          image: cemo07/pod-security-webhook:v6.4
+          imagePullPolicy: IfNotPresent
+          
           ports:
             - containerPort: 8443
               name: https
@@ -28,6 +28,12 @@ spec:
               name: metrics
 
           env:
+            - name: TZ
+              value: "Europe/Istanbul"
+              
+            - name: ALLOWED_STORAGE_CLASSES
+              value: "longhorn,standard"
+
             - name: DB_HOST
               value: postgres.db.svc.cluster.local
 
@@ -39,6 +45,9 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_DB
+            
+            - name: TZ
+              value: Europe/Istanbul
 
             - name: DB_USER
               valueFrom:

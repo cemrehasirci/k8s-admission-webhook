@@ -1,0 +1,168 @@
+.formGroup {
+  margin-bottom: 20px;
+  position: relative;
+}
+.formGroup:focus-within, .formGroup:hover {
+  z-index: 10;
+}
+.label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+}
+.customSelectWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.select {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text-primary);
+  border-radius: 12px;
+  outline: none;
+  font-size: 0.95rem;
+  transition: all 0.1s;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+
+.select:hover {
+  background: var(--panel-hover);
+  border-color: rgba(96, 165, 250, 0.4);
+}
+
+.chevron {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.comboBoxInputWrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.1s;
+}
+.comboBoxInputWrapper:focus-within {
+  border-color: rgba(96, 165, 250, 0.4);
+  background: var(--panel-hover);
+}
+.comboBoxInput {
+  flex: 1;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  outline: none;
+  font-size: 0.95rem;
+}
+.comboBoxChevron {
+  padding: 0 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.optionsMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--panel-menu-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 8px;
+  z-index: 50;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.optionItem {
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.optionItem:hover {
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--text-primary);
+}
+
+.selectedOption {
+  background: rgba(59, 130, 246, 0.4);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.toggleContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggleContainer:hover {
+  background: var(--panel-hover);
+}
+.toggleInfo {
+  display: flex;
+  flex-direction: column;
+}
+.toggleTitle {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.toggleDesc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+/* Custom Switch */
+.switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: var(--panel-bg);
+  border-radius: 12px;
+  transition: background 0.3s;
+}
+.switch.active {
+  background: var(--primary);
+}
+.switchHandle {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: white; /* inside switch usually always white */
+  border-radius: 50%;
+  transition: transform 0.3s;
+}
+.switch.active .switchHandle {
+  transform: translateX(20px);
+}

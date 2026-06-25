@@ -115,6 +115,77 @@ def get_audit_summary():
         return {
             "error": str(e)
         }
+
+def get_dashboard_stats():
+    """
+    Returns exact stats structure expected by the UI Dashboard, directly from DB.
+    """
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            connect_timeout=2
+        )
+        cur = conn.cursor()
+
+        stats = {
+            "total": 0,
+            "success": 0,
+            "security": { "total": 0, "breakdown": {} },
+            "storage": { "total": 0, "breakdown": {} },
+            "resource": { "total": 0, "breakdown": {} }
+        }
+
+        # Toplam ve Başarılı İstekler
+        cur.execute("SELECT decision, COUNT(*) FROM admission_audit_logs GROUP BY decision")
+        rows = cur.fetchall()
+        for row in rows:
+            decision = row[0]
+            count = row[1]
+            stats["total"] += count
+            if decision.startswith("allow"):
+                stats["success"] += count
+
+        # Reddedilen İsteklerin Kırılımı
+        cur.execute("SELECT policy, reason, COUNT(*) FROM admission_audit_logs WHERE decision = 'deny' GROUP BY policy, reason")
+        deny_rows = cur.fetchall()
+        for row in deny_rows:
+            policy = row[0]
+            reason = row[1]
+            count = row[2]
+
+            category = "security"
+            if policy == "resources":
+                category = "resource"
+            elif policy == "storage":
+                category = "storage"
+            elif policy == "security":
+                category = "security"
+            else:
+                r_low = reason.lower()
+                if "resource" in r_low or "cpu" in r_low or "memory" in r_low:
+                    category = "resource"
+                elif "volume" in r_low or "storage" in r_low or "hostpath" in r_low:
+                    category = "storage"
+
+            if len(reason) > 55:
+                reason = reason[:55] + "..."
+
+            stats[category]["total"] += count
+            stats[category]["breakdown"][reason] = count
+
+        cur.close()
+        conn.close()
+
+        return stats
+
+    except Exception as e:
+        return {
+            "error": str(e)
+        }
         
 def check_database_health():
     """

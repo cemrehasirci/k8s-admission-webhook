@@ -1,0 +1,161 @@
+.terminal {
+  background: var(--terminal-bg);
+  border-radius: 12px;
+  border: 1px solid var(--terminal-border);
+  padding: 20px;
+  font-family: 'Consolas', 'Courier New', Courier, monospace;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  height: 900px;
+  box-shadow: var(--terminal-shadow);
+  margin-top: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hacker Scanline Effect */
+.terminal::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: var(--terminal-scanline);
+  z-index: 2;
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--terminal-header-border);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  color: var(--terminal-header-text);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 700;
+  text-shadow: var(--terminal-header-shadow, none);
+  position: relative;
+  z-index: 3;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.viewToggleBtn {
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--terminal-header-text);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.viewToggleBtn:hover {
+  background: rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.viewToggleBtn.active {
+  background: var(--terminal-header-text);
+  color: var(--background);
+  border-color: var(--terminal-header-text);
+  box-shadow: var(--terminal-header-shadow, none);
+}
+
+.btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--log-error);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.logs {
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+  position: relative;
+  z-index: 3;
+  color: var(--text-secondary);
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 10px;
+}
+
+.empty {
+  color: var(--text-muted);
+  font-style: italic;
+  display: block;
+  text-align: center;
+  margin-top: 40px;
+  position: relative;
+  z-index: 3;
+}
+
+.jsonOutput {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--log-info);
+  font-family: 'Consolas', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  position: relative;
+  z-index: 3;
+}
+
+.jsonContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  z-index: 3;
+}
+
+.jsonCard {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--log-info);
+  font-family: 'Consolas', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  background: var(--terminal-json-bg);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+.jsonCard:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: var(--background);
+}

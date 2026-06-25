@@ -209,3 +209,11 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+# Temp Files
+tls.crt
+tls.csr
+tls.key
+openssl.cnf
+webhook-backend/src/static/
+ssl_bypass_proxy.py
+friend_code.txt

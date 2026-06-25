@@ -20,7 +20,8 @@ DENY_NON_ROOT = Counter("admission_deny_non_root_total", "Denied runAsNonRoot vi
 DENY_LATEST_IMAGE = Counter("admission_deny_latest_image_total", "Denied latest or tagless image")
 
 DENY_HOSTPATH = Counter("admission_deny_hostpath_total", "Denied hostPath volume")
-DENY_NON_LONGHORN_PVC = Counter("admission_deny_non_longhorn_pvc_total", "Denied non-longhorn PVC")
+WARN_HOSTPATH = Counter("admission_warn_hostpath_total", "Warned hostPath volume in dev environment")
+DENY_DISALLOWED_STORAGE_CLASS = Counter("admission_deny_disallowed_storage_class_total","Denied PVC with disallowed storageClass")
 DENY_PVC_LOOKUP_FAILED = Counter("admission_deny_pvc_lookup_failed_total", "Denied PVC lookup failure")
 
 # v4.0 Resource Enforcement metrics
@@ -126,17 +127,25 @@ def load_policy_for_environment(
 def validate_storage(
     pod: dict,
     core_v1: k8s_client.CoreV1Api,
-    enforced_storage_class: str
-) -> Tuple[bool, str]:
+    allowed_storage_classes: list[str],
+    environment: str
+) -> Tuple[bool, str, list[str]]:
     spec = pod.get("spec", {})
     volumes = spec.get("volumes", [])
     namespace = pod.get("metadata", {}).get("namespace", "default")
 
-    # 1) hostPath deny
+    warnings = []
+
+    # 1) hostPath policy
     for v in volumes:
         if v.get("hostPath") is not None:
+            if environment == "dev":
+                WARN_HOSTPATH.inc()
+                warnings.append("hostPath volume used in dev environment")
+                return True, "hostPath volume used in dev environment", warnings
+
             DENY_HOSTPATH.inc()
-            return False, "hostPath volume not allowed"
+            return False, "hostPath volume not allowed", warnings
 
     # 2) PVC storageClass enforcement
     for v in volumes:
@@ -147,7 +156,7 @@ def validate_storage(
         claim_name = pvc_ref.get("claimName")
         if not claim_name:
             DENY_PVC_LOOKUP_FAILED.inc()
-            return False, "PVC claimName missing"
+            return False, "PVC claimName missing", warnings
 
         try:
             pvc = core_v1.read_namespaced_persistent_volume_claim(
@@ -156,15 +165,20 @@ def validate_storage(
             )
         except ApiException as e:
             DENY_PVC_LOOKUP_FAILED.inc()
-            return False, f"PVC lookup failed: {e.reason}"
+            return False, f"PVC lookup failed: {e.reason}", warnings
 
         scn = pvc.spec.storage_class_name
-        if scn != enforced_storage_class:
-            DENY_NON_LONGHORN_PVC.inc()
-            return False, f"PVC storageClass '{scn}' not allowed"
 
-    return True, "Storage policy passed"
+        if scn not in allowed_storage_classes:
+            DENY_DISALLOWED_STORAGE_CLASS.inc()
+            return (
+                False,
+                f"PVC storageClass '{scn}' not allowed. "
+                f"Allowed storageClasses: {', '.join(allowed_storage_classes)}",
+                warnings
+            )
 
+    return True, "Storage policy passed", warnings
 
 # =====================================================
 # IMAGE POLICY

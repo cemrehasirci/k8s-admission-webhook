@@ -5,12 +5,20 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["persistentvolumeclaims"]
-  verbs: ["get"]
+  verbs: ["get", "list", "create"]
 
 - apiGroups: [""]
   resources: ["namespaces"]
-  verbs: ["get"]
+  verbs: ["get", "list"]
 
 - apiGroups: [""]
   resources: ["configmaps"]
-  verbs: ["get"]
+  verbs: ["get", "list"]
+
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "delete", "create"]
+
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
