@@ -35,28 +35,26 @@ export function LogViewer({ refreshTrigger }: { refreshTrigger?: number }) {
   const formatLogLine = (line: string, index: number) => {
     if (!line.trim()) return null;
     
-    // 1. HTML karakterlerini güvenli hale getir
-    let safeLine = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // 1. Terminalden gelen karmaşık ANSI renk kodlarını tamamen temizle
+    let cleanLine = line.replace(/\x1b\[[0-9;]*m/g, '');
+    
+    // 2. HTML karakterlerini güvenli hale getir
+    let safeLine = cleanLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     
     // JSON modundaysak sadece string'i bas (renklendirme yok)
     if (viewMode === 'json') {
-      return <div key={index} style={{ minHeight: '1.2em', opacity: 0.8 }}>{line}</div>;
+      return <div key={index} style={{ minHeight: '1.2em', opacity: 0.8 }}>{safeLine}</div>;
     }
 
-    // Formatted modu: Renklendirme kuralları
+    // Formatted modu: Temizlenmiş metin üzerinden kendi renklerimizi uygulayalım
     safeLine = safeLine
-      // ANSI kodları veya kaçmış parantezlerle gelen DENY
-      .replace(/(?:\\u001b|\\x1b)?\[91mDENY(?:\\u001b|\\x1b)?\[0m/g, '<span style="color: var(--log-error); font-weight: bold;">DENY</span>')
-      // Kaçmamış haliyle gelen DENY
-      .replace(/\[91mDENY\[0m/g, '<span style="color: var(--log-error); font-weight: bold;">DENY</span>')
-      // ANSI kodları veya kaçmış parantezlerle gelen ALLOW
-      .replace(/(?:\\u001b|\\x1b)?\[92mALLOW(?:\\u001b|\\x1b)?\[0m/g, '<span style="color: var(--log-success); font-weight: bold;">ALLOW</span>')
-      // Kaçmamış haliyle gelen ALLOW
-      .replace(/\[92mALLOW\[0m/g, '<span style="color: var(--log-success); font-weight: bold;">ALLOW</span>')
-      
-      // Standart Kelimeler
+      .replace(/DECISION=DENY/g, 'DECISION=<span style="color: var(--log-error); font-weight: bold;">DENY</span>')
+      .replace(/DECISION=ALLOW_WITH_WARNING/g, 'DECISION=<span style="color: #fde047; font-weight: bold;">ALLOW_WITH_WARNING</span>')
+      .replace(/DECISION=ALLOW/g, 'DECISION=<span style="color: var(--log-success); font-weight: bold;">ALLOW</span>')
+      .replace(/WARNING EVENT=/g, '<span style="color: #f97316; font-weight: bold;">WARNING</span> EVENT=')
+      .replace(/INFO EVENT=/g, '<span style="color: var(--log-info); font-weight: bold;">INFO</span> EVENT=')
       .replace(/INFO:/g, '<span style="color: var(--log-info);">INFO:</span>')
-      .replace(/WARNING/g, '<span style="color: var(--log-warning);">WARNING</span>')
+      .replace(/WARNING:/g, '<span style="color: var(--log-warning);">WARNING:</span>')
       .replace(/ERROR:/g, '<span style="color: var(--log-error);">ERROR:</span>')
       .replace(/\[AUDIT\]/g, '<span style="color: var(--log-audit);">[AUDIT]</span>');
 
