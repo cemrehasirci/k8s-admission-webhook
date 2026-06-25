@@ -2,6 +2,7 @@ import os
 import time
 import logging
 import uvicorn
+import asyncio
 
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
@@ -586,7 +587,7 @@ async def get_pods():
                 "name": p.metadata.name or 'Unknown',
                 "namespace": p.metadata.namespace or 'Unknown',
                 "status": exact_status,
-                "startTime": p.status.start_time.strftime("%Y-%m-%d %H:%M:%S") if p.status.start_time else 'N/A'
+                "startTime": p.status.start_time.strftime("%Y-%m-%dT%H:%M:%SZ") if p.status.start_time else 'N/A'
             })
         return {"pods": pods}
     except Exception as e:
@@ -704,9 +705,44 @@ async def create_pod(request: Request):
                 "mountPath": "/data"
             })
         elif volume_type == "pvc":
+            # Gelen pvcName aslında seçilen StorageClass'ı temsil ediyor ('standard-pvc' veya 'longhorn-pvc')
+            sc_selection = body.get("pvcName", "standard-pvc")
+            sc_name = "standard" if "standard" in sc_selection else "longhorn"
+            
+            pvc_name = f"pvc-{pod_name}"
+            pvc_manifest = {
+                "apiVersion": "v1",
+                "kind": "PersistentVolumeClaim",
+                "metadata": {
+                    "name": pvc_name,
+                    "namespace": pod_manifest["metadata"]["namespace"]
+                },
+                "spec": {
+                    "accessModes": ["ReadWriteOnce"],
+                    "storageClassName": sc_name,
+                    "resources": {
+                        "requests": {
+                            "storage": "1Gi"
+                        }
+                    }
+                }
+            }
+            
+            # PVC'yi Kubernetes üzerinde oluştur
+            try:
+                await run_in_threadpool(
+                    core_v1.create_namespaced_persistent_volume_claim,
+                    namespace=pod_manifest["metadata"]["namespace"],
+                    body=pvc_manifest
+                )
+                await asyncio.sleep(1)  # API Cache'in senkronize olması için kısa bir bekleme
+
+            except Exception as pvc_err:
+                return JSONResponse(status_code=400, content={"success": False, "message": f"PVC oluşturulamadı: {str(pvc_err)}", "reason": "PVC_CREATION_FAILED"})
+            
             pod_manifest["spec"]["volumes"].append({
                 "name": "test-vol",
-                "persistentVolumeClaim": {"claimName": body.get("pvcName", "test-pvc")}
+                "persistentVolumeClaim": {"claimName": pvc_name}
             })
             containers_spec["volumeMounts"].append({
                 "name": "test-vol",
