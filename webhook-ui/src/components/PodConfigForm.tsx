@@ -82,8 +82,27 @@ export function PodConfigForm({ onSubmit, loading }: PodConfigFormProps) {
   };
 
   const generateYaml = () => {
-    let yaml = `kubectl apply -f - <<EOF
-apiVersion: v1
+    let yaml = `kubectl apply -f - <<EOF\n`;
+    
+    if (config.volumeType === 'pvc') {
+      const scName = config.pvcName.includes('standard') ? 'standard' : 'longhorn';
+      yaml += `apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-test-pod
+  namespace: ${config.namespace}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ${scName}
+  resources:
+    requests:
+      storage: 1Gi
+---
+`;
+    }
+
+    yaml += `apiVersion: v1
 kind: Pod
 metadata:
   name: test-pod
@@ -120,7 +139,7 @@ ${config.runAsRoot ? '    runAsUser: 0\n' : ''}${config.runAsNonRoot ? '    runA
       yaml += `\n  volumes:\n    - name: test-vol`;
       if (config.volumeType === 'emptyDir') yaml += `\n      emptyDir: {}`;
       if (config.volumeType === 'hostPath') yaml += `\n      hostPath:\n        path: /tmp/test`;
-      if (config.volumeType === 'pvc') yaml += `\n      persistentVolumeClaim:\n        claimName: ${config.pvcName}`;
+      if (config.volumeType === 'pvc') yaml += `\n      persistentVolumeClaim:\n        claimName: pvc-test-pod`;
     }
 
     yaml += `\nEOF`;

@@ -120,30 +120,10 @@ export function PodList({ refreshTrigger }: { refreshTrigger: number }) {
 
   const formatPodTime = (value?: string) => {
     if (!value) return "-";
-  
-    const cleaned = value.trim();
-  
-    const match = cleaned.match(
-      /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/
-    );
-  
-    if (!match) return cleaned;
-  
-    const [, y, m, d, h, min, s] = match;
-  
-    const date = new Date(
-      Number(y),
-      Number(m) - 1,
-      Number(d),
-      Number(h),
-      Number(min),
-      Number(s)
-    );
-  
-    date.setHours(date.getHours() + 3);
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return value;
   
     const pad = (n: number) => String(n).padStart(2, "0");
-  
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   };
 

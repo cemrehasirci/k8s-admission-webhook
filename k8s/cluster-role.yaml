@@ -5,7 +5,7 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["persistentvolumeclaims"]
-  verbs: ["get", "list"]
+  verbs: ["get", "list", "create"]
 
 - apiGroups: [""]
   resources: ["namespaces"]

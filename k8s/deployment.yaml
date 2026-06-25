@@ -28,6 +28,9 @@ spec:
               name: metrics
 
           env:
+            - name: TZ
+              value: "Europe/Istanbul"
+              
             - name: ALLOWED_STORAGE_CLASSES
               value: "longhorn,standard"
 
@@ -66,3 +69,4 @@ spec:
       volumes:
         - name: tls-certs
           secret:
+            secretName: pod-security-webhook-tls
