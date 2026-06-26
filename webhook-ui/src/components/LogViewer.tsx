@@ -15,14 +15,15 @@ export function LogViewer({ refreshTrigger }: { refreshTrigger?: number }) {
       const res = await fetch('/api/logs');
       const data = await res.json();
       setLogs(data.logs || 'Bilinmeyen log formatı');
-    } catch (e: any) {
-      setLogs(`Hata: ${e.message}`);
+    } catch (e: unknown) {
+      setLogs(`Hata: ${(e as Error).message}`);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    // eslint-disable-next-line
     fetchLogs();
   }, [refreshTrigger]);
 
@@ -36,7 +37,7 @@ export function LogViewer({ refreshTrigger }: { refreshTrigger?: number }) {
     if (!line.trim()) return null;
     
     // 1. Terminalden gelen karmaşık ANSI renk kodlarını tamamen temizle
-    let cleanLine = line.replace(/\x1b\[[0-9;]*m/g, '');
+    const cleanLine = line.replace(/\x1b\[[0-9;]*m/g, '');
     
     // 2. HTML karakterlerini güvenli hale getir
     let safeLine = cleanLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -61,10 +62,24 @@ export function LogViewer({ refreshTrigger }: { refreshTrigger?: number }) {
     return <div key={index} dangerouslySetInnerHTML={{ __html: safeLine }} style={{ minHeight: '1.2em' }} />;
   };
 
+  type LogEvent = {
+    timestamp?: string;
+    level?: string;
+    client_ip?: string;
+    http_request?: string;
+    status_code?: number;
+    status_text?: string;
+    audit_message?: string;
+    raw_info?: string;
+    raw_message?: string;
+    extra_data?: string;
+    [key: string]: string | number | undefined; // Dinamik alanlar (namespace, decision vb.) için
+  };
+
   const parseLogsToJson = (rawLogs: string) => {
     const lines = rawLogs.split('\n').filter(l => l.trim() !== '');
-    const groupedEvents: any[] = [];
-    let currentEvent: any = null;
+    const groupedEvents: LogEvent[] = [];
+    let currentEvent: LogEvent | null = null;
 
     lines.forEach(line => {
       const cleanLine = line.replace(/\x1b\[[0-9;]*m/g, '').replace(/\[91m/g, '').replace(/\[92m/g, '').replace(/\[0m/g, '');
@@ -78,13 +93,13 @@ export function LogViewer({ refreshTrigger }: { refreshTrigger?: number }) {
         if (parts[1]) {
           parts[1].split(' ').forEach(kv => {
             const [k, v] = kv.split('=');
-            if (k && v) currentEvent[k] = v;
+            if (k && v && currentEvent) currentEvent[k] = v;
           });
         }
       } 
       else if (cleanLine.startsWith('INFO:')) {
         const match = cleanLine.match(/INFO:\s+([0-9\.:]+)\s+-\s+"([^"]+)"\s+(\d+)\s+(.*)/);
-        if (match) {
+        if (match && currentEvent) {
           currentEvent.client_ip = match[1];
           currentEvent.http_request = match[2];
           currentEvent.status_code = parseInt(match[3]);
@@ -94,13 +109,13 @@ export function LogViewer({ refreshTrigger }: { refreshTrigger?: number }) {
           // Kutucuğu kapatıp listeye ekliyoruz.
           groupedEvents.push(currentEvent);
           currentEvent = null;
-        } else {
+        } else if (currentEvent) {
           currentEvent.raw_info = cleanLine;
         }
       }
       else {
         const eventMatch = cleanLine.match(/^([\d-]+ [\d:,]+) (\w+) (.*)/);
-        if (eventMatch) {
+        if (eventMatch && currentEvent) {
           currentEvent.timestamp = eventMatch[1];
           currentEvent.level = eventMatch[2];
           const rest = eventMatch[3];
@@ -109,7 +124,7 @@ export function LogViewer({ refreshTrigger }: { refreshTrigger?: number }) {
           while ((kvMatch = kvRegex.exec(rest)) !== null) {
             currentEvent[kvMatch[1].toLowerCase()] = kvMatch[2] !== undefined ? kvMatch[2] : kvMatch[3];
           }
-        } else {
+        } else if (currentEvent) {
           // Tamamen bilinmeyen bir satır formatıysa
           if (Object.keys(currentEvent).length === 0) {
             groupedEvents.push({ raw_message: cleanLine });
